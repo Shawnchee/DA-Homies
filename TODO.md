@@ -51,13 +51,13 @@ Checkpoint rule: finish a phase, run `npm run build` + smoke test, confirm with 
 
 ## ⛔ Everything below needs the Supabase + Z.AI keys.
 
-## Phase 4 — Supabase live (needs Supabase keys) ← NEXT
-- [ ] Paste env vars into `.env.local`.
-- [ ] Run migration + seed against the Supabase project.
-- [ ] Flip `MOCK_MODE` off for `/api/patients`, `/api/followups`, `/api/brief` (read paths first). Routes read from Supabase; fall back to mock if error.
-- [ ] Verify dashboard still renders.
+## Phase 4 — Supabase live (needs Supabase keys) ✅ DONE
+- [x] Paste env vars into `.env.local` (URL + anon + service role). `SUPABASE_DB_URL` still blank — not needed until Phase 7 (LangGraph checkpointer).
+- [x] Applied migration + seed via Supabase MCP. Verified counts: patients=9, visits=9, followups=5.
+- [x] Routes `/api/patients`, `/api/followups`, `/api/brief` now read from Supabase when `hasSupabase()`, with mock fallback on error. `lib/supabase-mappers.ts` overlays display-only fields (time/tag/reason/brief) from `lib/data.ts` by patient name — these move to an appointments table + GLM in later phases.
+- [x] Smoke: all 5 pages 200; all 3 routes return DB-backed data; 404 + empty-brief edge cases covered.
 
-## Phase 5 — GLM client + prompts (needs Z.AI key)
+## Phase 5 — GLM client + prompts (needs Z.AI key) ← NEXT
 - [ ] `lib/glm.ts` — Z.AI client wrapper: `callGLM({system, user, json?: boolean})`. Handles retries, JSON parsing, error logging.
 - [ ] `lib/prompts.ts` — three templates from PRD §11 (BRIEF_PROMPT, CONSULT_EXTRACTION_PROMPT, TRIAGE_PROMPT). Parameterised.
 - [ ] `lib/billing-matrix.ts` — diagnosis → billable items table (Harrison owns content; stub for now).
