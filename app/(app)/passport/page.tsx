@@ -6,7 +6,6 @@ import { ReactNode, Suspense, useMemo } from "react";
 import { Button, Card, Icon } from "@/components/atoms";
 import { PageHeader, SectionTitle } from "@/components/app-shell/page-header";
 import { useStore } from "@/components/app-shell/store";
-import { PATIENTS } from "@/lib/data";
 import {
   BORDER_HAIRLINE,
   C,
@@ -254,10 +253,17 @@ function VisitRow({
 function PassportContent() {
   const params = useSearchParams();
   const pid = params.get("pid");
-  const milo = PATIENTS.find((x) => x.id === "p1")!;
-  const p = PATIENTS.find((x) => x.id === pid) || milo;
+  const { flashToast, patients } = useStore();
+  const milo = patients.find((x) => x.id === "p1") || patients[0];
+  const p = patients.find((x) => x.id === pid) || milo;
 
-  const { flashToast } = useStore();
+  if (!p) {
+    return (
+      <div style={{ padding: 48, color: C.muted, fontSize: 14 }}>
+        Loading passport…
+      </div>
+    );
+  }
 
   // Stable uuid-ish slug for display (demo)
   const uuid = "9f3c-4a1e-milo-passport";

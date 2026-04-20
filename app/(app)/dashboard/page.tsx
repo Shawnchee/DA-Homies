@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Dot, Pill } from "@/components/atoms";
 import { useStore } from "@/components/app-shell/store";
-import { MONTH_METRICS, PATIENTS } from "@/lib/data";
 import { C, FONT_SERIF, FONT_MONO } from "@/lib/tokens";
 import type { MetricCardData, Patient } from "@/lib/types";
 
@@ -218,7 +217,7 @@ function KpiCard({ m, index }: { m: MetricCardData; index: number }) {
   );
 }
 
-function KpiRow() {
+function KpiRow({ metrics }: { metrics: MetricCardData[] }) {
   return (
     <div
       style={{
@@ -228,7 +227,7 @@ function KpiRow() {
         marginBottom: 32,
       }}
     >
-      {MONTH_METRICS.map((m, i) => (
+      {metrics.map((m, i) => (
         <KpiCard key={m.label} m={m} index={i} />
       ))}
     </div>
@@ -725,7 +724,10 @@ function SectionLabel({
 export default function DashboardPage() {
   const {
     followups,
+    patients,
+    metrics,
     resolvedCount,
+    loading,
     expandedPatient,
     setExpandedPatient,
     flashToast,
@@ -752,7 +754,7 @@ export default function DashboardPage() {
     <div style={{ padding: "0 32px 120px", maxWidth: 1320, margin: "0 auto" }}>
       <HeroRow escalationCount={escalations.length} />
 
-      <KpiRow />
+      <KpiRow metrics={metrics} />
 
       <div
         style={{
@@ -766,10 +768,14 @@ export default function DashboardPage() {
         <div>
           <SectionLabel
             title="Today's Schedule"
-            count={`${PATIENTS.length} patients`}
+            count={
+              loading && patients.length === 0
+                ? "loading…"
+                : `${patients.length} patients`
+            }
           />
           <div style={{ display: "grid", gap: 10 }}>
-            {PATIENTS.map((p, i) => (
+            {patients.map((p, i) => (
               <PatientRow
                 key={p.id}
                 p={p}

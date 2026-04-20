@@ -6,10 +6,11 @@ import { ReactNode, Suspense, useMemo, useRef, useState } from "react";
 import { Button, Card, Icon, Pill } from "@/components/atoms";
 import { PageHeader, PetAvatar } from "@/components/app-shell/page-header";
 import { useStore } from "@/components/app-shell/store";
-import { GLM_CONSULT_OUTPUT, PATIENTS } from "@/lib/data";
+import { api } from "@/lib/api";
 import { C, FONT_MONO, FONT_SERIF, SHADOW_CARD } from "@/lib/tokens";
 import type {
   BillingItem,
+  ConsultOutput,
   PrescriptionItem,
   SoapNote,
   TodoItem,
@@ -674,36 +675,40 @@ function ExampleDropdown({ onPick }: { onPick: (text: string, label: string) => 
 function ConsultContent() {
   const params = useSearchParams();
   const pid = params.get("pid");
-  const patient = PATIENTS.find((p) => p.id === pid) || PATIENTS[0];
-  const { flashToast } = useStore();
+  const { flashToast, patients } = useStore();
+  const patient = patients.find((p) => p.id === pid) || patients[0];
 
   const [notes, setNotes] = useState("");
   const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState(false);
+  const [output, setOutput] = useState<ConsultOutput | null>(null);
   const [recording, setRecording] = useState(false);
   const [recordSec, setRecordSec] = useState(0);
   const recordTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const output = GLM_CONSULT_OUTPUT;
   const billTotal = useMemo(
-    () => output.billing.reduce((a, b) => a + b.price, 0),
+    () => (output ? output.billing.reduce((a, b) => a + b.price, 0) : 0),
     [output]
   );
   const billFlagged = useMemo(
     () =>
-      output.billing.filter((b) => b.flagged).reduce((a, b) => a + b.price, 0),
+      output
+        ? output.billing.filter((b) => b.flagged).reduce((a, b) => a + b.price, 0)
+        : 0,
     [output]
   );
 
-  const generate = () => {
-    if (!notes.trim()) return;
+  const generate = async () => {
+    if (!notes.trim() || !patient) return;
     setGenerating(true);
-    setGenerated(false);
-    const delay = 900 + Math.floor(Math.random() * 300);
-    setTimeout(() => {
+    setOutput(null);
+    try {
+      const res = await api.consult({ patientId: patient.id, notes });
+      setOutput(res.output);
+    } catch (err) {
+      flashToast(err instanceof Error ? err.message : "Generation failed");
+    } finally {
       setGenerating(false);
-      setGenerated(true);
-    }, delay);
+    }
   };
 
   const toggleRecord = () => {
@@ -728,12 +733,20 @@ function ConsultContent() {
 
   const status: "idle" | "generating" | "ready" = generating
     ? "generating"
-    : generated
+    : output
     ? "ready"
     : "idle";
 
   const fmtTime = (n: number) =>
     `${Math.floor(n / 60)}:${(n % 60).toString().padStart(2, "0")}`;
+
+  if (!patient) {
+    return (
+      <div style={{ padding: 48, color: C.muted, fontSize: 14 }}>
+        Loading patient…
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: "0 32px 120px", maxWidth: 1480, margin: "0 auto" }}>
@@ -1031,7 +1044,7 @@ function ConsultContent() {
             >
               {generating
                 ? "Generating…"
-                : generated
+                : output
                 ? "Regenerate structured output"
                 : "Generate structured output"}
             </Button>
@@ -1145,7 +1158,7 @@ function ConsultContent() {
             </Card>
           )}
 
-          {status === "ready" && (
+          {status === "ready" && output && (
             <div style={{ display: "grid", gap: 14 }}>
               <SoapCard
                 s={output.soap}

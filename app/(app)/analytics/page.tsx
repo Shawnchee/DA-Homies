@@ -1,9 +1,10 @@
 "use client";
 
-import { CSSProperties, ReactNode, useEffect, useState } from "react";
+import { CSSProperties, ReactNode, useEffect, useMemo, useState } from "react";
 import { Button, Card, Icon } from "@/components/atoms";
 import { PageHeader } from "@/components/app-shell/page-header";
-import { CORRECTIONS_LOG, TOP_DIAGNOSES } from "@/lib/data";
+import { api } from "@/lib/api";
+import type { CorrectionRow, DiagnosisRow } from "@/lib/types";
 import {
   BORDER_HAIRLINE,
   C,
@@ -444,8 +445,7 @@ function ValidationTable() {
    Section 4 — Top diagnoses (10 bars). Flat solid neutral tone.
    Hairline baseline under each bar.
    ------------------------------------------------------------------ */
-const TOP_10_DIAGNOSES = [
-  ...TOP_DIAGNOSES,
+const DIAGNOSIS_EXTRAS: DiagnosisRow[] = [
   { label: "Urinary tract infection", count: 9 },
   { label: "Conjunctivitis", count: 8 },
   { label: "Obesity / weight mgmt", count: 7 },
@@ -453,12 +453,12 @@ const TOP_10_DIAGNOSES = [
   { label: "Ingested foreign body", count: 4 },
 ];
 
-function TopDiagnosesBars() {
+function TopDiagnosesBars({ rows }: { rows: DiagnosisRow[] }) {
   const mounted = useMounted(180);
-  const max = Math.max(...TOP_10_DIAGNOSES.map((d) => d.count));
+  const max = Math.max(1, ...rows.map((d) => d.count));
   return (
     <div style={{ display: "grid", gap: 10 }}>
-      {TOP_10_DIAGNOSES.map((d, i) => {
+      {rows.map((d, i) => {
         const ratio = d.count / max;
         const stagger = Math.min(i * 60, 600);
         return (
@@ -534,14 +534,7 @@ type CorrRow = {
   reason: string;
 };
 
-const CORR_ROWS: CorrRow[] = [
-  ...CORRECTIONS_LOG.map((r) => ({
-    date: r.date,
-    feature: r.feature,
-    glm: r.glm,
-    fix: r.fix.split(" — ")[0] ?? r.fix,
-    reason: r.fix.split(" — ")[1] ?? r.who,
-  })),
+const CORR_EXTRAS: CorrRow[] = [
   {
     date: "10 Apr",
     feature: "Billing",
@@ -565,7 +558,17 @@ const CORR_ROWS: CorrRow[] = [
   },
 ];
 
-function CorrectionsTable() {
+function correctionsToRows(log: CorrectionRow[]): CorrRow[] {
+  return log.map((r) => ({
+    date: r.date,
+    feature: r.feature,
+    glm: r.glm,
+    fix: r.fix.split(" — ")[0] ?? r.fix,
+    reason: r.fix.split(" — ")[1] ?? r.who,
+  }));
+}
+
+function CorrectionsTable({ rows }: { rows: CorrRow[] }) {
   const cols: CSSProperties = {
     display: "grid",
     gridTemplateColumns: "90px 130px 1.3fr 1.3fr 1.2fr",
@@ -607,7 +610,7 @@ function CorrectionsTable() {
           )
         )}
       </div>
-      {CORR_ROWS.map((r, i) => {
+      {rows.map((r, i) => {
         const toneColor =
           r.feature === "Triage"
             ? C.red
@@ -620,7 +623,7 @@ function CorrectionsTable() {
             style={{
               ...cols,
               borderBottom:
-                i < CORR_ROWS.length - 1 ? BORDER_HAIRLINE : "none",
+                i < rows.length - 1 ? BORDER_HAIRLINE : "none",
             }}
           >
             <div
@@ -819,6 +822,25 @@ function FollowUpFunnel() {
    Page
    ------------------------------------------------------------------ */
 export default function AnalyticsPage() {
+  const [diagnoses, setDiagnoses] = useState<DiagnosisRow[]>([]);
+  const [corrections, setCorrections] = useState<CorrectionRow[]>([]);
+
+  useEffect(() => {
+    void api.getAnalytics().then((r) => {
+      setDiagnoses(r.diagnoses);
+      setCorrections(r.corrections);
+    });
+  }, []);
+
+  const topDiagnoses = useMemo(
+    () => [...diagnoses, ...DIAGNOSIS_EXTRAS],
+    [diagnoses],
+  );
+  const corrRows = useMemo(
+    () => [...correctionsToRows(corrections), ...CORR_EXTRAS],
+    [corrections],
+  );
+
   // Deterministic sparkline data — last 12 weeks
   const sparkTime = [28, 31, 30, 33, 35, 34, 38, 40, 41, 43, 45, 47];
   const sparkBill = [
@@ -967,7 +989,7 @@ export default function AnalyticsPage() {
         caption="Across 154 consults. Distribution matches typical solo-clinic pattern; otitis and GI lead, as expected in SEA urban pet populations."
         delay={280}
       >
-        <TopDiagnosesBars />
+        <TopDiagnosesBars rows={topDiagnoses} />
       </Section>
 
       {/* Section 5 — Corrections log */}
@@ -977,7 +999,7 @@ export default function AnalyticsPage() {
         caption="Every correction becomes a few-shot example for this clinic's future prompts. No model retraining. The GLM gets smarter per clinic automatically."
         delay={360}
       >
-        <CorrectionsTable />
+        <CorrectionsTable rows={corrRows} />
       </Section>
 
       {/* Section 6 — Follow-up funnel */}

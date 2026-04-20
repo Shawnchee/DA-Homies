@@ -9,6 +9,9 @@ import type {
   ConsultOutput,
   Brief,
   FollowUpLevel,
+  MetricCardData,
+  DiagnosisRow,
+  CorrectionRow,
 } from "./types";
 
 // ─── /api/patients ──────────────────────────────────────────────────────────
@@ -76,6 +79,15 @@ export function parseTriageRequest(raw: unknown): TriageRequest {
 export type GetFollowupsResponse = {
   followups: FollowUp[];
   resolvedCount: number;
+};
+
+// ─── /api/metrics ───────────────────────────────────────────────────────────
+export type GetMetricsResponse = { metrics: MetricCardData[] };
+
+// ─── /api/analytics ─────────────────────────────────────────────────────────
+export type GetAnalyticsResponse = {
+  diagnoses: DiagnosisRow[];
+  corrections: CorrectionRow[];
 };
 
 // ─── /api/corrections ───────────────────────────────────────────────────────
