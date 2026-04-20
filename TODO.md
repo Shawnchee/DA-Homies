@@ -8,39 +8,41 @@ Checkpoint rule: finish a phase, run `npm run build` + smoke test, confirm with 
 
 ---
 
-## Phase 0 — Infra prep (no keys needed) ← START HERE
-- [ ] Add `.env.local.example` with every var the app will ever need (Z.AI, Supabase URL/anon/service/DB, Telegram token, app URL) — commit the example, ensure `.env.local` is gitignored.
-- [ ] Install runtime deps needed for later phases so we only `npm install` once: `@supabase/supabase-js`, `zod`, `grammy`. (Do NOT install until user okays to avoid lockfile churn — currently only listed.)
-- [ ] Create `lib/env.ts` — typed env reader that throws with a clear message when a required var is missing. Mark GLM / Supabase / Telegram as optional-but-warn so app still boots in mock mode.
-- [ ] Add a `MOCK_MODE` flag (defaults to on when keys missing). All API routes in later phases branch on this.
-- [ ] `npm run build` passes.
+## Phase 0 — Infra prep (no keys needed) ✅ DONE — commit 3505cd0
+- [x] Add `.env.local.example` with every var the app will ever need (Z.AI, Supabase URL/anon/service/DB, Telegram token, app URL) — commit the example, ensure `.env.local` is gitignored.
+- [~] Install runtime deps needed for later phases. **Deferred** — Phase 1 didn't need zod; will install per-phase as needed to avoid lockfile churn.
+- [x] Create `lib/env.ts` — typed env reader that throws with a clear message when a required var is missing.
+- [x] Add a `MOCK_MODE` flag (defaults to on when keys missing) via `isMockMode()` helper.
+- [x] `npm run build` passes.
 
-## Phase 1 — Domain model + API contracts (no keys)
-- [ ] Define shared request/response types in `lib/api-types.ts` (brief, consult, triage, corrections). Zod schemas.
-- [ ] Scaffold API routes returning **mock** data so the frontend has a real HTTP surface:
-  - `app/api/brief/route.ts` — GET `?patient_id=` → returns brief from `lib/data.ts`.
-  - `app/api/consult/route.ts` — POST `{notes, patient_id}` → returns `GLM_CONSULT_OUTPUT`.
-  - `app/api/triage/route.ts` — POST `{message, followup_id}` → returns deterministic fake triage based on keywords.
-  - `app/api/patients/route.ts` — GET → list. GET `?id=` → one.
-  - `app/api/corrections/route.ts` — POST → logs to console, returns ok.
-  - `app/api/followups/route.ts` — GET → list.
-- [ ] Each route validates input with zod, returns typed JSON.
-- [ ] `curl` / browser test each route.
+## Phase 1 — Domain model + API contracts (no keys) ✅ DONE — commit 1a3b (see git log)
+- [x] Define shared request/response types in `lib/api-types.ts`. **Hand-rolled validators instead of zod** to keep the lockfile clean.
+- [x] Scaffold API routes returning **mock** data:
+  - [x] `app/api/brief/route.ts` — GET `?patient_id=` → returns brief from `lib/data.ts`.
+  - [x] `app/api/consult/route.ts` — POST `{patientId, notes}` → returns `GLM_CONSULT_OUTPUT`.
+  - [x] `app/api/triage/route.ts` — POST `{followupId, message}` → keyword-based classifier (red-flag / monitor / clear).
+  - [x] `app/api/patients/route.ts` — GET → list. GET `?id=` → one.
+  - [x] `app/api/corrections/route.ts` — POST → logs, returns `{ok, id}`.
+  - [x] `app/api/followups/route.ts` — GET → list + resolvedCount.
+- [x] Each route validates input, returns typed JSON.
+- [x] Curl-tested: happy paths + 400/404 cases + all three triage branches.
 
-## Phase 2 — Frontend ↔ API wiring (no keys)
-- [ ] Replace direct imports of `lib/data.ts` in pages with `fetch("/api/...")` via a thin `lib/api.ts` client.
-- [ ] Keep `lib/data.ts` as the mock data source that API routes read from (single source of truth for mock).
-- [ ] Dashboard → `/api/patients` + `/api/followups`.
-- [ ] Patient card expansion → `/api/brief?patient_id=`.
-- [ ] Consult page "Generate" button → `/api/consult` (POST).
-- [ ] Escalation approve → `/api/corrections` + local state update.
-- [ ] Add optimistic/loading states where missing.
-- [ ] Smoke-test full flow in dev; nothing should look different visually.
+## Phase 2 — Frontend ↔ API wiring (no keys) ✅ DONE
+- [x] `lib/api.ts` — typed client over all routes (getPatients, getBrief, consult, triage, correction, etc).
+- [x] Store refactored: fetches followups/patients/metrics on mount; exposes `loading`, `error`, `refresh()`.
+- [x] Added `/api/metrics` + `/api/analytics` (dashboard KPIs + analytics page data).
+- [x] Dashboard → `useStore()` (patients, metrics, followups).
+- [x] Consult page "Generate" → `api.consult()` (real POST replaces fake setTimeout).
+- [x] Analytics → `api.getAnalytics()` (merges fetched + hardcoded extras).
+- [x] Passport → `useStore().patients`.
+- [x] Escalation approve → `api.correction()` fire-and-forget.
+- [x] Smoke-tested: all 6 pages HTTP 200, all 8 routes return data.
+- [ ] Patient card expansion on dashboard doesn't yet call `/api/brief` — the brief is embedded in the Patient object. Revisit when Supabase is live and briefs become GLM-generated. *(Deferred to Phase 6.)*
 
-## Phase 3 — Supabase schema files (no Supabase URL yet)
+## Phase 3 — Supabase schema files (no Supabase URL yet) ← NEXT
 - [ ] Create `supabase/migrations/0001_init.sql` with schema from PRD §10 (patients, visits, followups, corrections).
 - [ ] Create `supabase/seed.sql` — minimal seed drawn from `lib/data.ts` shape (5 patients + 5 followups to start; Yu Han expands to 150 later).
-- [ ] Create `lib/supabase.ts` with browser + server-side clients, but only initialised when env vars present.
+- [ ] Create `lib/supabase.ts` with browser + server-side clients, only initialised when env vars present.
 - [ ] Document in `supabase/README.md`: how to create project, paste URL/keys, run migration + seed.
 - [ ] No deploy yet — files only, committed.
 
