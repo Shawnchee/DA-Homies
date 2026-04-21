@@ -1,114 +1,159 @@
 # Consilium — Build TODO (phased)
 
-Current state: Next.js 16 + React 19 + Tailwind v4 frontend is scaffolded. Routes exist for dashboard, consult, follow-ups, analytics, passport. Mock data lives in `lib/data.ts`. Store is a React context (`components/app-shell/store.tsx`). No backend wired yet.
+Current state: Next.js 16 + React 19 + Tailwind v4 frontend is scaffolded. Routes exist for dashboard, consult, follow-ups, analytics, passport. Mock data lives in `lib/data.ts`. Store is a React context (`components/app-shell/store.tsx`). API routes live in `app/api/*` and return Supabase-backed data when live, mock fallback otherwise.
 
-Blocked on credentials: **Z.AI GLM API key** + **Supabase project URL / anon / service-role / DB URL** + **Telegram bot token**. Everything that needs them is gated to later phases. Earlier phases are runnable now.
+Blocked on credentials: **Z.AI GLM API key** + **Telegram bot token** may not land before prelim submission. Plan is **mock-first**: build a complete, demo-ready flow (loaders, fake latency, canned GLM output, simulated Telegram, fake realtime drops) that records cleanly for the hackathon video. Real-integration work is tracked in the Backlog section below, grouped by original phase so a future agent can swap modules 1:1 when keys arrive. Supabase keys are already live.
 
 Checkpoint rule: finish a phase, run `npm run build` + smoke test, confirm with user before starting the next phase.
+
+**Swappability contract**: `lib/glm.ts` and `lib/telegram.ts` ship as mock modules with the exact function signatures the real implementations will have. Swapping = replace the module body, not rewire callers. Route handlers never branch on `isMockMode()` — they call the module, the module decides.
 
 ---
 
 ## Phase 0 — Infra prep (no keys needed) ✅ DONE — commit 3505cd0
-- [x] Add `.env.local.example` with every var the app will ever need (Z.AI, Supabase URL/anon/service/DB, Telegram token, app URL) — commit the example, ensure `.env.local` is gitignored.
-- [~] Install runtime deps needed for later phases. **Deferred** — Phase 1 didn't need zod; will install per-phase as needed to avoid lockfile churn.
-- [x] Create `lib/env.ts` — typed env reader that throws with a clear message when a required var is missing.
-- [x] Add a `MOCK_MODE` flag (defaults to on when keys missing) via `isMockMode()` helper.
+- [x] `.env.local.example` with every var, `.env.local` gitignored.
+- [~] Runtime deps installed per-phase (zod deferred — hand-rolled validators).
+- [x] `lib/env.ts` typed env reader + `isMockMode()` helper.
 - [x] `npm run build` passes.
 
-## Phase 1 — Domain model + API contracts (no keys) ✅ DONE — commit 1a3b (see git log)
-- [x] Define shared request/response types in `lib/api-types.ts`. **Hand-rolled validators instead of zod** to keep the lockfile clean.
-- [x] Scaffold API routes returning **mock** data:
-  - [x] `app/api/brief/route.ts` — GET `?patient_id=` → returns brief from `lib/data.ts`.
-  - [x] `app/api/consult/route.ts` — POST `{patientId, notes}` → returns `GLM_CONSULT_OUTPUT`.
-  - [x] `app/api/triage/route.ts` — POST `{followupId, message}` → keyword-based classifier (red-flag / monitor / clear).
-  - [x] `app/api/patients/route.ts` — GET → list. GET `?id=` → one.
-  - [x] `app/api/corrections/route.ts` — POST → logs, returns `{ok, id}`.
-  - [x] `app/api/followups/route.ts` — GET → list + resolvedCount.
-- [x] Each route validates input, returns typed JSON.
-- [x] Curl-tested: happy paths + 400/404 cases + all three triage branches.
+## Phase 1 — Domain model + API contracts (no keys) ✅ DONE — commit 1a3b
+- [x] `lib/api-types.ts` shared request/response types, hand-rolled validators.
+- [x] Routes scaffolded with mock data: `brief`, `consult`, `triage`, `patients`, `corrections`, `followups`.
+- [x] Curl-tested: happy paths + 400/404 + all three triage branches.
 
 ## Phase 2 — Frontend ↔ API wiring (no keys) ✅ DONE
-- [x] `lib/api.ts` — typed client over all routes (getPatients, getBrief, consult, triage, correction, etc).
-- [x] Store refactored: fetches followups/patients/metrics on mount; exposes `loading`, `error`, `refresh()`.
-- [x] Added `/api/metrics` + `/api/analytics` (dashboard KPIs + analytics page data).
-- [x] Dashboard → `useStore()` (patients, metrics, followups).
-- [x] Consult page "Generate" → `api.consult()` (real POST replaces fake setTimeout).
-- [x] Analytics → `api.getAnalytics()` (merges fetched + hardcoded extras).
-- [x] Passport → `useStore().patients`.
+- [x] `lib/api.ts` typed client. Store fetches on mount; exposes loading/error/refresh.
+- [x] `/api/metrics` + `/api/analytics` added. All six pages wired.
 - [x] Escalation approve → `api.correction()` fire-and-forget.
-- [x] Smoke-tested: all 6 pages HTTP 200, all 8 routes return data.
-- [ ] Patient card expansion on dashboard doesn't yet call `/api/brief` — the brief is embedded in the Patient object. Revisit when Supabase is live and briefs become GLM-generated. *(Deferred to Phase 6.)*
+- [ ] Dashboard patient-card `/api/brief` fetch still deferred. *(Revisit in Phase 6-real backlog.)*
 
-## Phase 3 — Supabase schema files (no Supabase URL yet) ✅ DONE
-- [x] Create `supabase/migrations/0001_init.sql` with schema from PRD §10 (patients, visits, followups, corrections). Added extras not in PRD: `owner_phone` on patients, `recommended_action` + `telegram_chat_id` on followups, `followup_id` + `approved` on corrections (to match `CorrectionRequest` in `lib/api-types.ts`). Indexes + `replica identity full` on followups.
-- [x] Create `supabase/seed.sql` — seed expanded from 5→9 patients (plus 9 visits + 5 followups) because `lib/data.ts` follow-ups reference 4 patients not on the dashboard (Coco/Biscuit/Pepper/Tofu). Truncates on re-run.
-- [x] Create `lib/supabase.ts` with browser + server-side clients, only initialised when env vars present.
-- [x] Document in `supabase/README.md`: create project → copy env vars → run migration + seed → enable Realtime on `followups`.
-- [x] No deploy yet — files only, committed.
-- [x] Installed `@supabase/supabase-js`.
+## Phase 3 — Supabase schema files ✅ DONE
+- [x] `supabase/migrations/0001_init.sql`, `supabase/seed.sql` (9 patients / 9 visits / 5 followups).
+- [x] `lib/supabase.ts` browser + server clients, env-gated.
+- [x] `supabase/README.md` documented.
 
----
-
-## ⛔ Everything below needs the Supabase + Z.AI keys.
-
-## Phase 4 — Supabase live (needs Supabase keys) ✅ DONE
-- [x] Paste env vars into `.env.local` (URL + anon + service role). `SUPABASE_DB_URL` still blank — not needed until Phase 7 (LangGraph checkpointer).
-- [x] Applied migration + seed via Supabase MCP. Verified counts: patients=9, visits=9, followups=5.
-- [x] Routes `/api/patients`, `/api/followups`, `/api/brief` now read from Supabase when `hasSupabase()`, with mock fallback on error. `lib/supabase-mappers.ts` overlays display-only fields (time/tag/reason/brief) from `lib/data.ts` by patient name — these move to an appointments table + GLM in later phases.
-- [x] Smoke: all 5 pages 200; all 3 routes return DB-backed data; 404 + empty-brief edge cases covered.
-
-## Phase 5 — GLM client + prompts (needs Z.AI key) ← NEXT
-- [ ] `lib/glm.ts` — Z.AI client wrapper: `callGLM({system, user, json?: boolean})`. Handles retries, JSON parsing, error logging.
-- [ ] `lib/prompts.ts` — three templates from PRD §11 (BRIEF_PROMPT, CONSULT_EXTRACTION_PROMPT, TRIAGE_PROMPT). Parameterised.
-- [ ] `lib/billing-matrix.ts` — diagnosis → billable items table (Harrison owns content; stub for now).
-- [ ] Smoke test: one-off script `scripts/test-glm.ts` that calls each prompt with sample input and prints output.
-
-## Phase 6 — Route the AI features through GLM (needs both)
-- [ ] `/api/brief` → read visits from Supabase → GLM BRIEF_PROMPT → return structured 5-line brief. Cache per patient for 10 min.
-- [ ] `/api/consult` → GLM CONSULT_EXTRACTION_PROMPT → insert row into `visits` → return structured output.
-- [ ] `/api/triage` (naive version, no LangGraph yet) → GLM TRIAGE_PROMPT → update `followups` row → return decision.
-- [ ] Remove the keyword-matching fallback in triage once accuracy verified.
-
-## Phase 7 — LangGraph triage graph (needs both)
-- [ ] Add `langgraph/triage_graph.py` (Brandon's territory) with nodes: classify → route → compose_reply.
-- [ ] `langgraph/checkpointer.py` wires `PostgresSaver` to `SUPABASE_DB_URL`.
-- [ ] Decide Python runtime: (a) small FastAPI sidecar deployed separately, called from `/api/triage`, OR (b) Vercel Python serverless function. Default = (a) for hackathon speed.
-- [ ] Replace naive triage in `/api/triage` with a call to the Python service.
-- [ ] Verify checkpointer tables appear in Supabase.
-
-## Phase 8 — Telegram bot (needs Telegram token + Supabase live)
-- [ ] `lib/telegram.ts` — grammY client + `sendTelegramMessage(chat_id, text)` helper.
-- [ ] `app/api/telegram/webhook/route.ts` — receives updates, resolves `followup_id` from `chat_id`, forwards to `/api/triage`.
-- [ ] Script `scripts/send-test-followup.ts` that seeds a followup and sends the initial 24h message to a test chat.
-- [ ] `setWebhook` script pointing Telegram at the deployed URL.
-
-## Phase 9 — Realtime dashboard (needs Supabase live)
-- [ ] Enable Realtime on `followups` table (SQL + dashboard toggle documented).
-- [ ] In `components/app-shell/store.tsx`: subscribe to `postgres_changes` where `status=eq.escalate`, push new rows into `followups` state.
-- [ ] Visual: fresh escalation cards animate in (use existing motion primitives).
-- [ ] Test: trigger an UPDATE from SQL editor, confirm card appears without refresh.
-
-## Phase 10 — Corrections + feedback loop (needs both)
-- [ ] `/api/corrections` writes to `corrections` table.
-- [ ] Before each GLM call for `feature=triage`, fetch last 5 corrections and inject as few-shot into prompt.
-- [ ] Corrections log shown on analytics page sourced from DB (not mock).
-- [ ] Toggle in UI: `[ ✓ Correct ] [ ✗ Wrong — reason ]` on every escalation approve/edit.
-
-## Phase 11 — Pet passport (needs Supabase live)
-- [ ] `app/(public)/passport/[id]/page.tsx` as public ISR page (current `passport/page.tsx` is a placeholder under `(app)`).
-- [ ] Query patient + latest visit.
-- [ ] QR code generation (client-side, `qrcode` npm).
-- [ ] "Download PDF" button (later; can be defer-to-demo-day).
-
-## Phase 12 — Demo polish + validation (no keys gate)
-- [ ] Yu Han's 150-patient seed expanded in `supabase/seed.sql`.
-- [ ] `scripts/validate-triage.ts` runs 50 scenarios through `/api/triage`, prints accuracy matrix (GLM vs keyword baseline) — produces the table in PRD §15.
-- [ ] Demo rehearsal checklist matching PRD §14 script.
-- [ ] Deploy to Vercel, set env vars, verify Telegram webhook points at prod URL.
+## Phase 4 — Supabase live ✅ DONE
+- [x] Env vars pasted, migration + seed applied via Supabase MCP.
+- [x] `/api/patients`, `/api/followups`, `/api/brief` read from Supabase when `hasSupabase()`, mock fallback on error.
+- [x] `lib/supabase-mappers.ts` overlays display-only fields from `lib/data.ts` by name.
 
 ---
 
-## Open questions to resolve before Phase 7
-- Where does the Python LangGraph service live? (Vercel Python func vs Fly.io / Render sidecar.)
-- Who runs the Telegram bot in prod — single webhook, or do we poll for dev?
-- One clinic hardcoded — which clinic name/phone goes on passports and reply sign-offs?
+## 🎬 Mock-first demo track (no GLM/Telegram keys needed) ← WE ARE HERE
+
+Goal: every user-visible surface behaves as if GLM + Telegram were live. Real wiring deferred to Backlog. Each phase must leave `npm run build` green.
+
+## Phase M5 — Mock GLM client + prompt scaffolding ✅ DONE
+- [x] `lib/glm.ts` — `callGLM<T>({feature, system?, user, json?, context?}): Promise<CallGLMResult<T>>`. Real-client signature. 600–1400 ms jittered delay. Imports `lib/prompts.ts` so Phase 5-real is a body-only swap. Logs "would inject" when `context.corrections` is present (Phase 10-real stub).
+- [x] `lib/glm-fixtures.ts` — `briefFixture`, `consultFixture`, `triageFixture`. Triage keyword-matches on red-flag / monitor / clear, reproducing the inline classifier previously in `/api/triage`.
+- [x] `lib/prompts.ts` — `BRIEF_PROMPT`, `CONSULT_EXTRACTION_PROMPT`, `TRIAGE_PROMPT`. Hackathon-grade (no PRD §11 anchor yet).
+- [x] `lib/billing-matrix.ts` — 5-diagnosis starter matrix + `billablesFor(diagnosis)` helper.
+- [x] `scripts/test-glm.ts` — smoke script. All 3 triage branches fire; consult flags 2 billing items; few-shot hook logs. `npm run build` green.
+- [~] Installed `tsx` as devDep to run the smoke script (small, isolated — acceptable lockfile churn).
+
+## Phase M6 — Route AI features through mock GLM
+- [ ] `/api/brief` → `callGLM({feature: "brief", ...})` → 5-line brief shape. Supabase still provides patient row; brief body comes from fixture.
+- [ ] `/api/consult` → `callGLM({feature: "consult", ...})`. Also writes a visit row to Supabase so the consult persists across refresh — sells the demo.
+- [ ] `/api/triage` → `callGLM({feature: "triage", ...})`. Keyword-match inside the fixture picks red-flag vs monitor vs clear.
+- [ ] Delete the inline keyword classifier in `/api/triage` once the fixture produces the same three branches.
+- [ ] Extend the current 600 ms `setTimeout` in `app/api/consult/route.ts` to ~1.2–2 s so the GLM "thinking" feels substantial during the demo recording.
+
+## Phase M7 — UX polish (loaders, reveal, toasts)
+- [ ] Skeleton loaders on dashboard patient cards, KPI row, and analytics charts. Wired to `loading` from `useStore()`. Analytics page currently has **no loading state** — add one around `api.getAnalytics()` call.
+- [ ] Skeleton on follow-ups page (escalation / monitor / recovered groupings) while loading.
+- [ ] 200 ms skeleton between "Brief →" click and the inline brief expansion in `app/(app)/dashboard/page.tsx` (lines 385–456) so it feels fetched.
+- [ ] Streaming-style text reveal on consult output: split fixture into ~8-token chunks, `setInterval` append at ~40 ms. New `components/app-shell/streamed-text.tsx`. The existing `GeneratingMarquee` + `DotPulse` + `StatusPill` in `app/(app)/consult/page.tsx` stay as the pre-stream thinking state.
+- [ ] Toasts on correction/approve + triage decision reusing existing `flashToast` in the store.
+- [ ] Empty-state + error-state polish for every page (brief card, consult panel, follow-up list).
+
+## Phase M8 — Mock Telegram (in-app simulated conversation)
+- [ ] `lib/telegram.ts` — export `sendTelegramMessage(chatId: string, text: string): Promise<{ok: true}>` with the **real-client signature**. Mock body pushes to an in-memory `MOCK_TELEGRAM_LOG` keyed by `chatId` and emits a custom event on a global bus so UI can subscribe.
+- [ ] `app/api/telegram/webhook/route.ts` — stub the real webhook handler shape (accepts `{chat_id, text}`). In mock, called by the simulated-owner UI below; in real, Telegram hits it. Forwards to `/api/triage`.
+- [ ] **Fake conversation thread in `components/app-shell/escalation-modal.tsx`** — replace the single-owner-message quote block with a scrollable thread showing owner ↔ bot back-and-forth, pulled from `MOCK_TELEGRAM_LOG`. Timestamps per bubble. Owner can type a reply → POSTs to `/api/telegram/webhook` → triage decides → bot response appended.
+- [ ] Seed 2 canned conversations (one escalates, one resolves) so the demo video has something to land on without typing.
+
+## Phase M9 — Fake realtime (timed escalation drops)
+- [ ] `components/app-shell/demo-realtime.tsx` — when `NEXT_PUBLIC_DEMO_MODE === "true"` OR a hidden dev button is pressed, schedule 2 new escalation cards into `useStore().followups` at fixed delays (8 s, 22 s after mount). Uses the same animation path real Supabase Realtime will use. Exported function named `pushRealtimeFollowup(row)` so Phase 9-real drops a `postgres_changes` handler calling the same function.
+- [ ] Pair the existing 4 s "Realtime · new escalation" toast in `app/(app)/dashboard/page.tsx` with an actual card sliding in (`fadeUp` animation + pulsing red dot).
+- [ ] Optional second drop at ~15 s to show continuous live feel on the demo recording.
+
+## Phase M10 — Mock corrections feedback
+- [ ] `/api/corrections` writes to Supabase `corrections` table (keys live) AND maintains an in-memory `recentCorrections` ring buffer (last 5).
+- [ ] Analytics page pulls recent corrections from `/api/analytics` → renders in the existing corrections-log card.
+- [ ] `lib/glm.ts` triage fixture accepts a `corrections` context param and console-logs "would-inject" — stub for the real few-shot wiring.
+- [ ] `[ ✓ Correct ] [ ✗ Wrong — reason ]` toggle surfaces on every escalation approve/edit (in `escalation-modal.tsx`).
+
+## Phase M11 — Pet passport public page (static OK)
+- [ ] `app/(public)/passport/[id]/page.tsx` — public route outside the `(app)` shell. Reads patient + latest visit from Supabase.
+- [ ] Replace the procedural QR placeholder in `app/(app)/passport/page.tsx` with a real QR via `qrcode` npm (install this phase only).
+- [ ] Static layout, print-friendly. "Download PDF" deferred to demo day.
+- [ ] Link/QR from the `(app)` passport page to the `(public)` one.
+
+## Phase M12 — Demo rehearsal + Vercel deploy
+- [ ] Yu Han's expanded seed landed in `supabase/seed.sql` (target ~30 patients for prelim, full 150 for finals).
+- [ ] `docs/demo-script.md` matching PRD §14.
+- [ ] `NEXT_PUBLIC_DEMO_MODE=true` on a Vercel preview; verify mock Telegram pane + realtime drops render on the prod URL.
+- [ ] Record demo video. Re-record if any loader feels too fast (<500 ms) or too slow (>2 s).
+- [ ] Final `npm run build` + Lighthouse pass.
+
+---
+
+## Backlog — Real integration (unblocks when GLM key + Telegram token arrive)
+
+Grouped by original phase numbers from the pre-mock plan. Each entry: *what the mock does today*, *what to swap*, *files touched*, *deps*.
+
+### Phase 5-real — GLM client (needs `ZAI_API_KEY`)
+- **Mock does:** `lib/glm.ts` returns `lib/glm-fixtures.ts` with fake delay.
+- **Swap:** replace `lib/glm.ts` body with Z.AI fetch client (retries, JSON parse, error log). Signature unchanged. Keep `lib/prompts.ts` — already wired. `lib/glm-fixtures.ts` can be retained for tests or deleted.
+- **Files:** `lib/glm.ts`.
+- **Deps:** `ZAI_API_KEY`, `ZAI_MODEL`, `ZAI_BASE_URL` env vars.
+
+### Phase 6-real — Routes hit real GLM
+- **Mock does:** routes already call `callGLM()`. Works with fixture or real — no route changes needed.
+- **Swap:** after 5-real, re-test `/api/brief`, `/api/consult`, `/api/triage` return real structured output. Add 10-min cache on `/api/brief` per patient. Wire dashboard patient-card expansion to call `/api/brief` (still deferred from Phase 2).
+- **Files:** `app/api/brief/route.ts` (cache), `app/api/consult/route.ts`, `app/api/triage/route.ts`, `app/(app)/dashboard/page.tsx` (brief fetch).
+- **Deps:** live GLM + Supabase.
+
+### Phase 7-real — LangGraph triage graph
+- **Mock does:** `/api/triage` fixture returns one of three decisions, no tool-calling, no multi-turn state.
+- **Swap:** add `langgraph/triage_graph.py` (classify → tool_node | route_decision → escalate/monitor/clear). Tools: `request_photo`, `request_temperature`, `request_appetite_timeline`, `request_medication_compliance`, `schedule_doctor_callback`. Cap tool loop depth = 1. Checkpointer `PostgresSaver` on `SUPABASE_DB_URL`, thread id `followup_{followup_id}`. Terminal decision **or** exactly one tool call per turn.
+- **Python runtime:** default = FastAPI sidecar (Fly.io/Render). Vercel Python func as fallback.
+- **Files:** `langgraph/triage_graph.py`, `langgraph/tools.py`, `langgraph/checkpointer.py`, `app/api/triage/route.ts` (replace GLM call with fetch to sidecar).
+- **Deps:** GLM key, `SUPABASE_DB_URL`, sidecar deploy.
+
+### Phase 8-real — Telegram bot
+- **Mock does:** `lib/telegram.ts` writes to in-memory log; `escalation-modal.tsx` renders simulated chat. Webhook route accepts the real Telegram update shape.
+- **Swap:** replace `lib/telegram.ts` body with grammY client calling Bot API. Webhook stays; add signature-verification via `TELEGRAM_WEBHOOK_SECRET`. Gate simulated-chat bubbles behind `DEMO_MODE` or remove.
+- **Files:** `lib/telegram.ts`, `app/api/telegram/webhook/route.ts`, `components/app-shell/escalation-modal.tsx`, `scripts/send-test-followup.ts`, `scripts/set-webhook.ts`.
+- **Deps:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, deployed URL.
+
+### Phase 9-real — Supabase Realtime
+- **Mock does:** `pushRealtimeFollowup(row)` fires on a timer in `components/app-shell/demo-realtime.tsx`.
+- **Swap:** in `components/app-shell/store.tsx`, subscribe to `postgres_changes` on `followups` where `status=eq.escalate`; handler calls `pushRealtimeFollowup(row)`. Keep demo-realtime component toggleable for rehearsals.
+- **Files:** `components/app-shell/store.tsx`, `components/app-shell/demo-realtime.tsx` (demote to dev-only).
+- **Deps:** Realtime enabled on `followups` table.
+
+### Phase 10-real — Corrections few-shot injection
+- **Mock does:** corrections write to DB; fixture logs "would-inject".
+- **Swap:** in real `lib/glm.ts`, before triage call, fetch last 5 corrections from DB and prepend to prompt as few-shot examples.
+- **Files:** `lib/glm.ts`, `lib/prompts.ts` (add few-shot slot).
+- **Deps:** GLM live.
+
+### Phase 11-real — Passport extras
+- **Mock does:** public page reads from Supabase, renders real QR. Nothing required to swap.
+- **Swap:** add "Download PDF" (react-pdf or print-to-PDF) if time allows.
+- **Files:** `app/(public)/passport/[id]/page.tsx`.
+
+### Phase 12-real — Validation harness
+- **Mock does:** n/a.
+- **Swap:** `scripts/validate-triage.ts` runs 50 scenarios through `/api/triage` once GLM is live, prints accuracy matrix (GLM vs keyword baseline) for PRD §15 table.
+- **Files:** `scripts/validate-triage.ts`.
+
+---
+
+## Open questions
+- Where does the Python LangGraph sidecar live in prod? (Fly.io vs Render vs Vercel Python func.)
+- Single clinic hardcoded for prelim — which name/phone on passports + reply sign-offs?
+- Mock Telegram pane: add an "auto-play canned conversation" button for the demo video, or keep it fully interactive and rely on rehearsal?
+- Judge's demo link: bake `DEMO_MODE=true` into the preview, or use a secret query param (`?demo=1`) so a normal URL stays clean?
+- If GLM key arrives mid-weekend: swap during prelim window, or ship mock and swap only for finals?
