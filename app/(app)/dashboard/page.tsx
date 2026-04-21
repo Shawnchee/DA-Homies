@@ -764,20 +764,6 @@ export default function DashboardPage() {
   const escalations = followups.filter((f) => f.level === "escalate");
   const monitors = followups.filter((f) => f.level === "monitor");
 
-  // Realtime simulation toast — preserved from previous behaviour.
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const target = escalations[0];
-      if (target) {
-        flashToast(
-          `Realtime · new escalation from ${target.owner} — ${target.patient}`
-        );
-      }
-    }, 4000);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   return (
     <div style={{ padding: "0 32px 120px", maxWidth: 1320, margin: "0 auto" }}>
       <HeroRow escalationCount={escalations.length} />

@@ -80,10 +80,13 @@ Dev loop = polling, no public URL. Webhook path written but dormant until M12. B
 - [x] Smoke: `npx tsx scripts/start-bot.ts` authenticated as `@consilium_vet_bot` (id 8740499349). `npm run build` green with the new `/api/telegram/webhook` route registered.
 - [ ] Demo prep (do-once): run `scripts/send-test-followup.ts` with your personal chat id + "Milo" so a followup row is pre-linked for the rehearsal.
 
-## Phase M9 — Fake realtime (timed escalation drops)
-- [ ] `components/app-shell/demo-realtime.tsx` — when `NEXT_PUBLIC_DEMO_MODE === "true"` OR a hidden dev button is pressed, schedule 2 new escalation cards into `useStore().followups` at fixed delays (8 s, 22 s after mount). Uses the same animation path real Supabase Realtime will use. Exported function named `pushRealtimeFollowup(row)` so Phase 9-real drops a `postgres_changes` handler calling the same function.
-- [ ] Pair the existing 4 s "Realtime · new escalation" toast in `app/(app)/dashboard/page.tsx` with an actual card sliding in (`fadeUp` animation + pulsing red dot).
-- [ ] Optional second drop at ~15 s to show continuous live feel on the demo recording.
+## Phase M9 — Real Supabase Realtime ✅ DONE
+Scope changed from "fake timed drops" to real Realtime — the Telegram bot writes actual `followups` rows, so we just subscribe to the live stream instead of faking it.
+- [x] Migration `supabase/migrations/0002_realtime_followups.sql`: `alter publication supabase_realtime add table followups;` Applied via Supabase MCP; confirmed via `pg_publication_tables`.
+- [x] `components/app-shell/store.tsx` subscribes to `postgres_changes` on `followups` (INSERT + UPDATE) via `getSupabaseBrowser()`. On event: silent refresh (`loadFollowups(true)` skips the skeleton flash) + toast when a row becomes `escalate` for the first time (dedup via `seenEscalationIds` ref).
+- [x] Retired the fake 4 s `flashToast` timer in `app/(app)/dashboard/page.tsx` — toast now fires from real Realtime events.
+- [x] Smoke: `scripts/test-realtime.ts` subscribes with anon key, triggers UPDATE via service role, receives the event (~3 s after subscribe for the server-side bind). Revert-step included so DB stays demo-ready.
+- [ ] In-browser rehearsal: open `/dashboard`, text the bot from phone with "she's bleeding" → escalation card + toast should appear within 1–2 s with no refresh.
 
 ## Phase M10 — Mock corrections feedback
 - [ ] `/api/corrections` writes to Supabase `corrections` table (keys live) AND maintains an in-memory `recentCorrections` ring buffer (last 5).
@@ -135,11 +138,8 @@ Grouped by original phase numbers from the pre-mock plan. Each entry: *what the 
 - **Files:** `app/api/telegram/webhook/route.ts` (already written, just needs live routing + signature check), `scripts/set-webhook.ts` (new, one-shot registration), `lib/telegram.ts` (no change).
 - **Deps:** deployed URL + `TELEGRAM_WEBHOOK_SECRET` set on Vercel. Stop the local polling process once webhook is registered (only one receiver allowed per bot).
 
-### Phase 9-real — Supabase Realtime
-- **Mock does:** `pushRealtimeFollowup(row)` fires on a timer in `components/app-shell/demo-realtime.tsx`.
-- **Swap:** in `components/app-shell/store.tsx`, subscribe to `postgres_changes` on `followups` where `status=eq.escalate`; handler calls `pushRealtimeFollowup(row)`. Keep demo-realtime component toggleable for rehearsals.
-- **Files:** `components/app-shell/store.tsx`, `components/app-shell/demo-realtime.tsx` (demote to dev-only).
-- **Deps:** Realtime enabled on `followups` table.
+### Phase 9-real — Supabase Realtime ✅ landed in M9
+No further work. Subscription already live; real Telegram updates flow through the same path prod will use.
 
 ### Phase 10-real — Corrections few-shot injection
 - **Mock does:** corrections write to DB; fixture logs "would-inject".
