@@ -58,13 +58,16 @@ Goal: every user-visible surface behaves as if GLM + Telegram were live. Real wi
 - [x] Per-feature latency envelopes in `lib/glm.ts` (brief 500–900, consult 1200–2200, triage 600–1000). Consult "thinking" now lands at ~1.5s which reads as substantial in the UI.
 - [x] Curl-verified end-to-end on live Supabase: brief returns named brief (911 ms), consult persists real visit UUID + 2 flagged billing rows (2.1 s), triage all 3 branches (~1 s each).
 
-## Phase M7 — UX polish (loaders, reveal, toasts)
-- [ ] Skeleton loaders on dashboard patient cards, KPI row, and analytics charts. Wired to `loading` from `useStore()`. Analytics page currently has **no loading state** — add one around `api.getAnalytics()` call.
-- [ ] Skeleton on follow-ups page (escalation / monitor / recovered groupings) while loading.
-- [ ] 200 ms skeleton between "Brief →" click and the inline brief expansion in `app/(app)/dashboard/page.tsx` (lines 385–456) so it feels fetched.
-- [ ] Streaming-style text reveal on consult output: split fixture into ~8-token chunks, `setInterval` append at ~40 ms. New `components/app-shell/streamed-text.tsx`. The existing `GeneratingMarquee` + `DotPulse` + `StatusPill` in `app/(app)/consult/page.tsx` stay as the pre-stream thinking state.
-- [ ] Toasts on correction/approve + triage decision reusing existing `flashToast` in the store.
-- [ ] Empty-state + error-state polish for every page (brief card, consult panel, follow-up list).
+## Phase M7 — UX polish (loaders, reveal, toasts) ✅ DONE
+- [x] New primitives: `components/app-shell/skeleton.tsx` (`Skeleton` + `SkeletonKpiCard`, `SkeletonPatientRow`, `SkeletonEscalationCard`, `SkeletonBrief`), `components/app-shell/streamed-text.tsx`, `components/app-shell/error-banner.tsx`. Added `skeletonPulse` + `caretBlink` keyframes in `globals.css`.
+- [x] Dashboard: 4× KPI + 5× patient-row skeletons when `loading && patients.length === 0`. ErrorBanner with retry above KPIs when store error set.
+- [x] Analytics: local loading/error state added around `api.getAnalytics()`. 4× KPI card skeletons while loading. ErrorBanner with retry.
+- [x] Follow-ups: 3× escalation-card skeletons at the top while loading; section headings hidden. ErrorBanner with retry.
+- [x] Brief expansion: `briefReady` flag in `PatientRow` flips to true 200 ms after expand; `SkeletonBrief` rendered in between so it feels fetched.
+- [x] Consult output: SOAP lines wrapped in `<StreamedText>` (2-word chunks, 35 ms, staggered 220 + i·180 ms). Existing `GeneratingMarquee` + `DotPulse` + `StatusPill` kept as the pre-output thinking state.
+- [x] Toast on consult generate success: "Extracted · N billing items · RM X recoverable" (or fallback summary when nothing flagged). Approve toasts on SOAP/Rx/Billing/Todos already in place. Escalation approve toast already in place.
+- [~] Triage-decision toast deferred to Phase M8 — no UI today receives triage output (the simulated chat there will fire one on each bot turn).
+- [x] `npm run build` green; all 5 pages HTTP 200. Visual feel (pulse cadence, caret blink, stream rate) needs in-browser review.
 
 ## Phase M8 — Mock Telegram (in-app simulated conversation)
 - [ ] `lib/telegram.ts` — export `sendTelegramMessage(chatId: string, text: string): Promise<{ok: true}>` with the **real-client signature**. Mock body pushes to an in-memory `MOCK_TELEGRAM_LOG` keyed by `chatId` and emits a custom event on a global bus so UI can subscribe.
