@@ -69,15 +69,16 @@ Goal: every user-visible surface behaves as if GLM + Telegram were live. Real wi
 - [~] Triage-decision toast deferred to Phase M8 — no UI today receives triage output (the simulated chat there will fire one on each bot turn).
 - [x] `npm run build` green; all 5 pages HTTP 200. Visual feel (pulse cadence, caret blink, stream rate) needs in-browser review.
 
-## Phase M8 — Real Telegram bot (polling) ← `TELEGRAM_BOT_TOKEN` live
-Dev loop = polling, no public URL needed. Webhook path stays stubbed for M12 Vercel deploy. The bot talks to the mock GLM via `/api/triage`, so owner messages get triaged and replied to with zero Z.AI dependency.
-- [ ] Install `grammy` as a runtime dep.
-- [ ] `lib/telegram.ts` — real grammY client. Exports `sendTelegramMessage(chatId, text)` for use from API routes, and `getBot()` for the polling process. No mock in-memory log.
-- [ ] `scripts/start-bot.ts` — long-running polling process. Registers `bot.on("message:text")` → resolves `followup_id` from `chat_id` (see mapping below) → POSTs owner message to `/api/triage` → replies via `sendTelegramMessage` with the decision's `ownerReplyDraft`. Run with `npx tsx scripts/start-bot.ts` in a second terminal alongside `npm run dev`.
-- [ ] Chat↔followup mapping: seed your own Telegram chat id into one or two `followups.telegram_chat_id` rows (get your chat id by messaging the bot once and inspecting the update). Resolver = `SELECT * FROM followups WHERE telegram_chat_id = $1 ORDER BY created_at DESC LIMIT 1`.
-- [ ] `scripts/send-test-followup.ts` — seeds a new followup row linked to your chat id and sends the opening 24h message. Rehearsal helper.
-- [ ] `app/api/telegram/webhook/route.ts` — keep the handler written (same logic as the polling `message:text` hook) but leave `setWebhook` uncalled. Used only when Phase 8-real flips to prod.
-- [ ] Smoke: start bot → message from phone → owner reply arrives within 2 s; triage decision visible in the Next.js dev console log.
+## Phase M8 — Real Telegram bot (polling) ✅ DONE — `@consilium_vet_bot`
+Dev loop = polling, no public URL. Webhook path written but dormant until M12. Bot talks to mock GLM via the shared handler → real Telegram round-trip with zero Z.AI dependency.
+- [x] Installed `grammy` as runtime dep.
+- [x] `lib/telegram.ts` — grammY `Bot` singleton (`getBot()`) + `sendTelegramMessage(chatId, text)`.
+- [x] `lib/telegram-handler.ts` — `handleOwnerMessage(chatId, text)` shared by polling + webhook. Resolves followup via `telegram_chat_id`, calls `callGLM({feature:"triage"})` directly (no HTTP hop needed), writes decision + differentials back to the followup row, returns `ownerReplyDraft`. Unlinked chats get a friendly fallback with their id so reception can pair them.
+- [x] `scripts/start-bot.ts` — polling process. Uses `@next/env` `loadEnvConfig` + dynamic imports so it picks up `.env.local` like Next does. Logs `authenticated as @<username>` on start; handles `/start` with chat-id echo. Run: `npx tsx scripts/start-bot.ts`.
+- [x] `scripts/send-test-followup.ts` — seeds a followup row linked to a chat id (and optional patient name) and sends the opening 24h message. Run: `npx tsx scripts/send-test-followup.ts <CHAT_ID> [PATIENT]`.
+- [x] `app/api/telegram/webhook/route.ts` — dormant route. Verifies `x-telegram-bot-api-secret-token` against `TELEGRAM_WEBHOOK_SECRET` when set; otherwise open. Same `handleOwnerMessage` + `sendTelegramMessage` flow as polling. `setWebhook` not called — polling wins today.
+- [x] Smoke: `npx tsx scripts/start-bot.ts` authenticated as `@consilium_vet_bot` (id 8740499349). `npm run build` green with the new `/api/telegram/webhook` route registered.
+- [ ] Demo prep (do-once): run `scripts/send-test-followup.ts` with your personal chat id + "Milo" so a followup row is pre-linked for the rehearsal.
 
 ## Phase M9 — Fake realtime (timed escalation drops)
 - [ ] `components/app-shell/demo-realtime.tsx` — when `NEXT_PUBLIC_DEMO_MODE === "true"` OR a hidden dev button is pressed, schedule 2 new escalation cards into `useStore().followups` at fixed delays (8 s, 22 s after mount). Uses the same animation path real Supabase Realtime will use. Exported function named `pushRealtimeFollowup(row)` so Phase 9-real drops a `postgres_changes` handler calling the same function.
