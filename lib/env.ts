@@ -10,9 +10,6 @@
  * in one place.
  */
 
-// import { loadEnvConfig } from "@next/env";
-// loadEnvConfig(process.cwd());
-
 const read = (k: string): string => process.env[k]?.trim() ?? "";
 
 export const ENV = {
@@ -20,8 +17,8 @@ export const ENV = {
   mockModeRaw: read("MOCK_MODE"),
 
   zai: {
-    apiKey: read("ZAI_API_KEY") || "empty_baby_boy",
-    model: read("ZAI_MODEL") || "nemo-super",
+    apiKey: read("ZAI_API_KEY") || "no_key_baby_boy",
+    model: read("ZAI_MODEL") || "ilmu-glm-5.1",
     baseUrl: read("ZAI_BASE_URL") || "https://api.ilmu.ai/v1",
   },
 
