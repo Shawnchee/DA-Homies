@@ -28,16 +28,52 @@ async function main() {
   console.log("\n=== consult ===");
   const consult = await callGLM<ConsultOutput>({
     feature: "consult",
-    user: "4yo MN Golden Retriever, limping right hind 2 weeks. Partial CCL suspected.",
+    user: "4yo MN Golden Retriever, limping right hand 2 weeks. Partial CCL suspected. X-ray taken, e-collar recommended.",
   });
   console.log(`source=${consult.source}  latency=${consult.latencyMs}ms`);
+  console.log("  SOAP.S:", consult.data.soap.S);
   console.log("  SOAP.A:", consult.data.soap.A);
+  console.log("  SOAP.O:", consult.data.soap.O);
+  console.log("  SOAP.P:", consult.data.soap.P);
   console.log("  prescriptions:", consult.data.prescription.length);
   console.log("  billing rows:", consult.data.billing.length);
   console.log(
     "  flagged billing:",
     consult.data.billing.filter((b) => b.flagged).length,
   );
+
+  const TRIAGE_TOOLS = [
+    {
+      type: "function",
+      function: {
+        name: "request_media",
+        description: "Ask the pet owner to send a photo or video of a specific area or symptom.",
+        parameters: {
+          type: "object",
+          properties: {
+            mediaType: {
+              type: "string",
+              enum: ["photo", "video", "either"],
+              description: "The type of media required",
+            },
+            instruction: {
+              type: "string",
+              description: "Clear instructions for the owner (e.g. 'Take a clear photo of the red bump')",
+            },
+            reasoning: {
+              type: "string",
+              description: "Internal clinical justification for why this media is needed",
+            },
+            ownerPrompt: {
+              type: "string",
+              description: "Empathetic message to the owner explaining why we need the photo/video",
+            },
+          },
+          required: ["mediaType", "instruction", "reasoning", "ownerPrompt"],
+        },
+      },
+    },
+  ];
 
   const triageCases: Array<{ label: string; msg: string }> = [
     {
@@ -58,33 +94,38 @@ async function main() {
 
   for (const c of triageCases) {
     console.log(`\n=== triage: ${c.label} ===`);
-    // Force toolCallCount=1 so the fixture gives a decision (skip the
-    // multi-turn info-gathering branch — that's covered in the bot smoke).
     const t = await callGLM<TriageFixtureOutput>({
       feature: "triage",
       user: c.msg,
-      context: { toolCallCount: 1 },
+      tools: TRIAGE_TOOLS,
     });
     console.log(`source=${t.source}  latency=${t.latencyMs}ms`);
+    
     if (t.data.kind === "decision") {
       console.log(`  decision=${t.data.decision}  confidence=${t.data.confidence}`);
+      console.log(`  reasoning: ${t.data.reasoning}`);
       console.log(`  action: ${t.data.recommendedAction}`);
     } else {
-      console.log(`  tool_call=${t.data.tool}  reason=${t.data.reasoning}`);
+      console.log(`  tool_call=${t.data.tool}  args=${JSON.stringify(t.data.args)}`);
+      console.log(`  prompt: ${t.data.ownerPrompt}`);
     }
   }
 
-  console.log("\n=== triage: tool-call (ambiguous first turn) ===");
+  console.log("\n=== triage: tool-call (ambiguous blood sign) ===");
   const tool = await callGLM<TriageFixtureOutput>({
     feature: "triage",
-    user: "She has some blood on her bed",
-    context: { toolCallCount: 0, patientName: "Milo" },
+    user: "She has some blood on her bed, but she seems okay otherwise.",
+    tools: TRIAGE_TOOLS,
   });
+  
+  console.log(`source=${tool.source}  latency=${tool.latencyMs}ms`);
   if (tool.data.kind === "tool_call") {
     console.log(`  tool=${tool.data.tool}`);
+    console.log(`  args=${JSON.stringify(tool.data.args)}`);
     console.log(`  prompt: ${tool.data.ownerPrompt}`);
   } else {
     console.log(`  unexpected terminal decision: ${tool.data.decision}`);
+    console.log(`  reasoning: ${tool.data.reasoning}`);
   }
 
   console.log("\n=== few-shot hook ===");
