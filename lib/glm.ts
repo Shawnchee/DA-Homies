@@ -60,7 +60,7 @@ function getClient(){
       configuration: {
         baseURL: ENV.zai.baseUrl,
       },
-      temperature: 0.3,
+      temperature: 0.7,
     })
   }
 
