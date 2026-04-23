@@ -32,6 +32,7 @@ export interface CallGLMParams {
   user: string;
   json?: boolean;
   context?: Record<string, unknown>;
+  tools? : any[];
 }
 
 export interface CallGLMResult<T = unknown> {
@@ -40,6 +41,7 @@ export interface CallGLMResult<T = unknown> {
   model: string;
   latencyMs: number;
   source: "mock" | "glm";
+  toolCalls?: any[];
 }
 
 const PROMPTS: Record<GLMFeature, string> = {
@@ -47,63 +49,6 @@ const PROMPTS: Record<GLMFeature, string> = {
   consult: CONSULT_EXTRACTION_PROMPT,
   triage: TRIAGE_PROMPT,
 };
-
-/**
- * Per-feature latency envelopes. Tuned to feel like real LLM work:
- *  - brief: short summary, fast
- *  - consult: heavy extraction, substantial wait so the "thinking" animation lands
- *  - triage: one decision, medium
- */
-// const LATENCY_MS: Record<GLMFeature, [number, number]> = {
-//   brief: [500, 900],
-//   consult: [1200, 2200],
-//   triage: [600, 1000],
-// };
-
-// function pickLatency(feature: GLMFeature): number {
-//   const [lo, hi] = LATENCY_MS[feature];
-//   return lo + Math.floor(Math.random() * (hi - lo));
-// }
-
-// export async function callGLM<T = unknown>(
-//   params: CallGLMParams,
-// ): Promise<CallGLMResult<T>> {
-//   // System prompt is resolved here so the real swap can reuse the same
-//   // lookup. Kept as a named local so lint sees the import as used.
-//   const systemPrompt = params.system ?? PROMPTS[params.feature];
-//   void systemPrompt;
-
-//   if (params.context?.corrections) {
-//     // Phase 10-real will prepend these as few-shot. Stub log today.
-//     console.log(
-//       `[glm:mock] would inject ${
-//         Array.isArray(params.context.corrections)
-//           ? params.context.corrections.length
-//           : 1
-//       } corrections as few-shot for ${params.feature}`,
-//     );
-//   }
-
-//   const latencyMs = pickLatency(params.feature);
-//   await new Promise((r) => setTimeout(r, latencyMs));
-
-//   let data: unknown;
-//   if (params.feature === "brief") {
-//     data = briefFixture(params);
-//   } else if (params.feature === "consult") {
-//     data = consultFixture(params);
-//   } else {
-//     data = triageFixture(params);
-//   }
-
-//   return {
-//     data: data as T,
-//     raw: JSON.stringify(data),
-//     model: "glm-4.6-mock",
-//     latencyMs,
-//     source: "mock",
-//   };
-// }
 
 let client : ChatOpenAI | null = null;
 
@@ -138,30 +83,53 @@ export async function callGLM<T=unknown>(params: CallGLMParams): Promise<CallGLM
     systemPrompt += `\n\nExisting doctor corrections (follow these patterns):\n${correctionsText}`;
   }
 
-  const response = await client.invoke(
-    [
-      new SystemMessage(systemPrompt),
-      new HumanMessage(params.user),
-    ], 
-    {
-    response_format: params.json !== false ? { type: "json_object" } : undefined,
-    }
-  );
-  console.log("raw content", response.content);
-  const content = response.content as string;
+  let fullContent = "";
+  let toolCalls: any[] | undefined;
+  
+  const response = await client.invoke([
+    new SystemMessage(systemPrompt),
+    new HumanMessage(params.user),
+  ], {
+    response_format: (params.json !== false && !params.tools) ? { type: "json_object" } : undefined,
+    tools: params.tools,
+  });
+
+  fullContent = response.content as string;
+  const calls = (response.additional_kwargs as any).tool_calls;
+  if (calls && calls.length > 0) {
+    toolCalls = calls;
+  }
+  
   const latencyMs = Date.now() - startTime;
   let data: T;
   try {
-    data = params.json !== false ? JSON.parse(content.replace(/```json|```/g, "").trim()) : content;
+    const sanitized = fullContent.replace(/```json|```/g, "").trim();
+    
+    if (toolCalls && toolCalls.length > 0) {
+      const tc = toolCalls[0];
+      const args = JSON.parse(tc.function.arguments || "{}");
+      data = {
+        kind: "tool_call",
+        tool: tc.function.name,
+        args,
+        reasoning: args.reasoning || "AI requested more information.",
+        ownerPrompt: args.ownerPrompt || "The assistant needs more information to proceed.",
+      } as any;
+    } else {
+      data = params.json !== false ? JSON.parse(sanitized || "{}") : (fullContent as any);
+    }
   } catch (e) {
-    console.error("[glm] failed to parse JSON response:", content);
-    throw new Error("GLM returned invalid JSON");
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.error("[glm] RAW CONTENT WAS:", fullContent);
+    throw new Error(`GLM returned invalid format: ${errorMsg}`);
   }
+
   return {
     data,
-    raw: content,
+    raw: fullContent,
     model: ENV.zai.model,
     latencyMs,
     source: "glm",
+    toolCalls,
   };
 }
