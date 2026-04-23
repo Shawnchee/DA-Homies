@@ -7,12 +7,15 @@
  * to run in CI. When Phase 5-real lands, this same script will hit Z.AI
  * without any changes (requires ZAI_API_KEY in env).
  */
+import { loadEnvConfig } from "@next/env";
+loadEnvConfig(process.cwd());
 
-import { callGLM } from "../lib/glm";
 import type { Brief, ConsultOutput } from "../lib/types";
 import type { TriageFixtureOutput } from "../lib/glm-fixtures";
 
 async function main() {
+  const { callGLM } = await import("../lib/glm");
+
   console.log("\n=== brief ===");
   const brief = await callGLM<Brief>({
     feature: "brief",
