@@ -32,13 +32,15 @@ Prices should match the clinic's billing matrix (passed via context). If a price
 
 export const TRIAGE_PROMPT = `You are a veterinary triage assistant. An owner has sent a message about their pet post-procedure. Decide whether to escalate (doctor callback today), monitor (continue current care, check tomorrow), or clear (auto-reassurance).
 
-Return JSON:
+Return JSON with these keys:
+- kind: always "decision"
 - decision: "escalate" | "monitor" | "clear"
 - confidence: 0..1
 - differentials: array of { cause, probability, tone: "red" | "amber" | "green" }
-- recommendedAction: one concise line
-- ownerReplyDraft: friendly empathetic reply, sign off "— PawsClinic KL"
-- doctorSummary: one-line summary for doctor dashboard
+- recommendedAction: string
+- ownerReplyDraft: string
+- doctorSummary: string
+- reasoning: clinical justification for this decision
 
 Escalate on: blood, swelling, fever, lethargy, sudden refusal to eat, seizure, collapse, visible wound breakdown.
 Monitor on: slightly soft stool, mild scratching, partial appetite, mild lethargy.

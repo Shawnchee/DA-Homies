@@ -16,20 +16,23 @@ import {
   CONSULT_EXTRACTION_PROMPT,
   TRIAGE_PROMPT,
 } from "./prompts";
-import { briefFixture, consultFixture, triageFixture } from "./glm-fixtures";
+
+import { ENV } from "./env"
+
+import { ChatOpenAI } from "@langchain/openai";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+
+// import { briefFixture, consultFixture, triageFixture } from "./glm-fixtures";
 
 export type GLMFeature = "brief" | "consult" | "triage";
 
 export interface CallGLMParams {
   feature: GLMFeature;
-  /** Override the default prompt template. If omitted, uses the feature's template from lib/prompts.ts. */
   system?: string;
-  /** User content — patient notes, owner message, etc. */
   user: string;
-  /** Parse the response as JSON. Structured features default to true. */
   json?: boolean;
-  /** Extra context (patient metadata, few-shot corrections, etc.). */
   context?: Record<string, unknown>;
+  tools? : any[];
 }
 
 export interface CallGLMResult<T = unknown> {
@@ -38,6 +41,7 @@ export interface CallGLMResult<T = unknown> {
   model: string;
   latencyMs: number;
   source: "mock" | "glm";
+  toolCalls?: any[];
 }
 
 const PROMPTS: Record<GLMFeature, string> = {
@@ -46,59 +50,86 @@ const PROMPTS: Record<GLMFeature, string> = {
   triage: TRIAGE_PROMPT,
 };
 
-/**
- * Per-feature latency envelopes. Tuned to feel like real LLM work:
- *  - brief: short summary, fast
- *  - consult: heavy extraction, substantial wait so the "thinking" animation lands
- *  - triage: one decision, medium
- */
-const LATENCY_MS: Record<GLMFeature, [number, number]> = {
-  brief: [500, 900],
-  consult: [1200, 2200],
-  triage: [600, 1000],
-};
+let client : ChatOpenAI | null = null;
 
-function pickLatency(feature: GLMFeature): number {
-  const [lo, hi] = LATENCY_MS[feature];
-  return lo + Math.floor(Math.random() * (hi - lo));
-}
-
-export async function callGLM<T = unknown>(
-  params: CallGLMParams,
-): Promise<CallGLMResult<T>> {
-  // System prompt is resolved here so the real swap can reuse the same
-  // lookup. Kept as a named local so lint sees the import as used.
-  const systemPrompt = params.system ?? PROMPTS[params.feature];
-  void systemPrompt;
-
-  if (params.context?.corrections) {
-    // Phase 10-real will prepend these as few-shot. Stub log today.
-    console.log(
-      `[glm:mock] would inject ${
-        Array.isArray(params.context.corrections)
-          ? params.context.corrections.length
-          : 1
-      } corrections as few-shot for ${params.feature}`,
-    );
+function getClient(){
+  if (!client) {
+    client = new ChatOpenAI({
+      apiKey: ENV.zai.apiKey,
+      model: ENV.zai.model,
+      configuration: {
+        baseURL: ENV.zai.baseUrl,
+      },
+      temperature: 0.7,
+    })
   }
 
-  const latencyMs = pickLatency(params.feature);
-  await new Promise((r) => setTimeout(r, latencyMs));
+  console.log("Client Base URL", ENV.zai.baseUrl);
+  console.log("Client Model", ENV.zai.model);
+  return client;
+} 
 
-  let data: unknown;
-  if (params.feature === "brief") {
-    data = briefFixture(params);
-  } else if (params.feature === "consult") {
-    data = consultFixture(params);
-  } else {
-    data = triageFixture(params);
+export async function callGLM<T=unknown>(params: CallGLMParams): Promise<CallGLMResult<T>>{
+
+  const client = getClient();
+  const startTime = Date.now();
+
+  let systemPrompt = params.system ?? PROMPTS[params.feature];
+
+  if (params.context?.corrections && Array.isArray(params.context.corrections)) {
+    const correctionsText = params.context.corrections
+      .map((c: any) => `User: ${c.user}\nCorrection: ${c.correction}`)
+      .join("\n\n");
+    systemPrompt += `\n\nExisting doctor corrections (follow these patterns):\n${correctionsText}`;
+  }
+
+  let fullContent = "";
+  let toolCalls: any[] | undefined;
+  
+  const response = await client.invoke([
+    new SystemMessage(systemPrompt),
+    new HumanMessage(params.user),
+  ], {
+    response_format: (params.json !== false && !params.tools) ? { type: "json_object" } : undefined,
+    tools: params.tools,
+  });
+
+  fullContent = response.content as string;
+  const calls = (response.additional_kwargs as any).tool_calls;
+  if (calls && calls.length > 0) {
+    toolCalls = calls;
+  }
+  
+  const latencyMs = Date.now() - startTime;
+  let data: T;
+  try {
+    const sanitized = fullContent.replace(/```json|```/g, "").trim();
+    
+    if (toolCalls && toolCalls.length > 0) {
+      const tc = toolCalls[0];
+      const args = JSON.parse(tc.function.arguments || "{}");
+      data = {
+        kind: "tool_call",
+        tool: tc.function.name,
+        args,
+        reasoning: args.reasoning || "AI requested more information.",
+        ownerPrompt: args.ownerPrompt || "The assistant needs more information to proceed.",
+      } as any;
+    } else {
+      data = params.json !== false ? JSON.parse(sanitized || "{}") : (fullContent as any);
+    }
+  } catch (e) {
+    const errorMsg = e instanceof Error ? e.message : String(e);
+    console.error("[glm] RAW CONTENT WAS:", fullContent);
+    throw new Error(`GLM returned invalid format: ${errorMsg}`);
   }
 
   return {
-    data: data as T,
-    raw: JSON.stringify(data),
-    model: "glm-4.6-mock",
+    data,
+    raw: fullContent,
+    model: ENV.zai.model,
     latencyMs,
-    source: "mock",
+    source: "glm",
+    toolCalls,
   };
 }
