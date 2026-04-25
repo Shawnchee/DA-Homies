@@ -13,6 +13,7 @@
  */
 
 import { GLM_CONSULT_OUTPUT, PATIENTS } from "./data";
+import { ENV } from "./env";
 import type {
   Brief,
   ConsultOutput,
@@ -21,6 +22,8 @@ import type {
   ToolName,
 } from "./types";
 import type { CallGLMParams } from "./glm";
+
+const CLINIC = ENV.clinic.name;
 
 export interface TriageDecision {
   kind: "decision";
@@ -121,31 +124,31 @@ const TOOL_CALLS: Record<
     args: { body_part: "affected area", reason: "rule out surgical wound breakdown vs superficial bleed" },
     reasoning:
       "Owner reports a visual symptom (blood / swelling / redness) without specifics. A photo differentiates incision breakdown from normal post-op oozing — which swings the decision between escalate and monitor.",
-    ownerPrompt: `Thanks for letting us know about ${name}. Could you send a clear close-up photo of the area? Natural light works best. — PawsClinic KL`,
+    ownerPrompt: `Thanks for letting us know about ${name}. Could you send a clear close-up photo of the area? Natural light works best. — ${CLINIC}`,
   }),
   request_temperature: (name) => ({
     args: { unit: "celsius" },
     reasoning:
       "Systemic signs (heat / tremor / panting) are non-specific. A temp reading partitions fever (> 39.5°C → escalate) vs stress/environment (normal → monitor).",
-    ownerPrompt: `Thanks for the update on ${name}. If you have a thermometer handy, could you take her rectal or ear temperature and send me the reading? If not, no worries — just let me know. — PawsClinic KL`,
+    ownerPrompt: `Thanks for the update on ${name}. If you have a thermometer handy, could you take her rectal or ear temperature and send me the reading? If not, no worries — just let me know. — ${CLINIC}`,
   }),
   request_appetite_timeline: (name) => ({
     args: { hours_window: 24 },
     reasoning:
       "Low-energy / anorexia reports need a time window. < 12 h and drinking = monitor; > 24 h and refusing water = escalate. Ask before deciding.",
-    ownerPrompt: `Thanks for letting us know. How long has ${name} been off her food, and is she still drinking water? Any treats she'd normally go for that she's refusing? — PawsClinic KL`,
+    ownerPrompt: `Thanks for letting us know. How long has ${name} been off her food, and is she still drinking water? Any treats she'd normally go for that she's refusing? — ${CLINIC}`,
   }),
   request_medication_compliance: (name) => ({
     args: { drug: "prescribed course" },
     reasoning:
       "Persistent symptoms mid-treatment could be non-response OR missed doses. Confirm compliance before escalating to second-line drug.",
-    ownerPrompt: `Has ${name} been getting every dose of her medication on schedule? Any missed or vomited doses? — PawsClinic KL`,
+    ownerPrompt: `Has ${name} been getting every dose of her medication on schedule? Any missed or vomited doses? — ${CLINIC}`,
   }),
   schedule_doctor_callback: (name) => ({
     args: { urgency: "today" },
     reasoning:
       "Owner needs a human conversation — text triage can't capture what's being described.",
-    ownerPrompt: `I'd like one of our vets to call you about ${name} shortly — is this a good number to reach you on in the next 30 minutes? — PawsClinic KL`,
+    ownerPrompt: `I'd like one of our vets to call you about ${name} shortly — is this a good number to reach you on in the next 30 minutes? — ${CLINIC}`,
   }),
 };
 
@@ -162,8 +165,7 @@ function escalateDecision(
     confidence,
     differentials,
     recommendedAction: "Same-day recheck — photo + temperature if not already provided",
-    ownerReplyDraft:
-      "Thanks for letting us know. Based on what you're describing, we'd like to see them today. Could you come in at 2:30pm? If not, please call the clinic and we'll find a slot. — PawsClinic KL",
+    ownerReplyDraft: `Thanks for letting us know. Based on what you're describing, we'd like to see them today. Could you come in at 2:30pm? If not, please call the clinic and we'll find a slot. — ${CLINIC}`,
     doctorSummary: `Escalating: ${reason}`,
     reasoning: reason,
   };
@@ -179,8 +181,7 @@ function monitorDecision(reason: string): TriageDecision {
       { cause: "Mild complication", prob: 0.3, tone: "red" },
     ],
     recommendedAction: "Continue care, check in tomorrow",
-    ownerReplyDraft:
-      "Thanks for the update — sounds like things are heading the right way. Keep up the current plan and we'll check back in tomorrow. — PawsClinic KL",
+    ownerReplyDraft: `Thanks for the update — sounds like things are heading the right way. Keep up the current plan and we'll check back in tomorrow. — ${CLINIC}`,
     doctorSummary: "Partial recovery — re-check in 24h.",
     reasoning: reason,
   };
@@ -193,8 +194,7 @@ function clearDecision(reason: string): TriageDecision {
     confidence: 0.92,
     differentials: [{ cause: "Normal recovery", prob: 0.95, tone: "green" }],
     recommendedAction: "Auto-reassurance, close case",
-    ownerReplyDraft:
-      "Wonderful news! Keep up the current care plan and reach out if anything changes. — PawsClinic KL",
+    ownerReplyDraft: `Wonderful news! Keep up the current care plan and reach out if anything changes. — ${CLINIC}`,
     doctorSummary: "Owner reports normal recovery — case closed.",
     reasoning: reason,
   };

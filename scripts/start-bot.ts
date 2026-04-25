@@ -18,6 +18,7 @@ loadEnvConfig(process.cwd());
 (async () => {
   const { getBot } = await import("../lib/telegram");
   const { handleOwnerMessage } = await import("../lib/telegram-handler");
+  const { ENV } = await import("../lib/env");
 
   const bot = getBot();
   const me = await bot.api.getMe();
@@ -28,7 +29,7 @@ loadEnvConfig(process.cwd());
   bot.command("start", async (ctx) => {
     const chatId = String(ctx.chat.id);
     await ctx.reply(
-      `Hi! Your chat id is ${chatId}.\n\nAsk PawsClinic KL to link it to your pet's follow-up, then send updates here. Example: "She ate a little but still seems slow."`,
+      `Hi! Your chat id is ${chatId}.\n\nAsk ${ENV.clinic.name} to link it to your pet's follow-up, then send updates here. Example: "She ate a little but still seems slow."`,
     );
   });
 

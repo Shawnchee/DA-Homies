@@ -43,6 +43,7 @@ class TriageState(TypedDict):
     # inputs
     patient_id: str
     clinic_id: str
+    clinic_name: str
     patient_name: str
     text: str
     tool_call_count: int
@@ -75,6 +76,7 @@ async def triage_agent_node(state: TriageState) -> dict:
         patient_name=state["patient_name"],
         tool_call_count=state["tool_call_count"],
         conversation_text=state["conversation_text"],
+        clinic_name=state.get("clinic_name", "the clinic"),
     )
     system = (
         f"{base_system}\n\n"

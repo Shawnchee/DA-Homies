@@ -19,6 +19,8 @@ export interface TriageAgentRequest {
   followupId: string;
   patientId: string;
   clinicId: string;
+  /** Display name forwarded into the sidecar's TRIAGE_SYSTEM_TEMPLATE sign-off. */
+  clinicName?: string;
   chatId: string;
   text: string;
   patientName?: string;
@@ -47,6 +49,7 @@ export async function callTriageAgent(
     followup_id: req.followupId,
     patient_id: req.patientId,
     clinic_id: req.clinicId,
+    clinic_name: req.clinicName ?? "the clinic",
     chat_id: req.chatId,
     text: req.text,
     patient_name: req.patientName ?? "your pet",

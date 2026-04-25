@@ -16,6 +16,7 @@ import type {
   SoapNote,
   TodoItem,
 } from "@/lib/types";
+import { CLINIC } from "@/lib/clinic";
 
 // ─────────────────────────────────────────────────────────────────────
 // Demo scenarios — paste-in templates (PRD §F2 fidelity)
@@ -876,7 +877,7 @@ function ConsultContent() {
       <PageHeader
         eyebrow="Consultation"
         title="Capture today's visit."
-        sub={`Dr. Amirah · PawsClinic KL · ${new Date().toLocaleDateString("en-GB", {
+        sub={`${CLINIC.doctor} · ${CLINIC.name} · ${new Date().toLocaleDateString("en-GB", {
           weekday: "long",
           day: "numeric",
           month: "long",

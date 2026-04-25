@@ -83,5 +83,9 @@ class TriageRequest(BaseModel):
     chat_id: str
     text: str
     patient_name: Optional[str] = "your pet"
+    # Display name of the clinic deploying this sidecar — interpolated into
+    # the triage system prompt so the model's sign-off ("— PawsClinic KL")
+    # matches the deploying tenant. Default kept generic to avoid hardcoding.
+    clinic_name: Optional[str] = "the clinic"
     tool_call_count: int = 0
     prior_conversation: list[ConversationTurnIn] = Field(default_factory=list)

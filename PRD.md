@@ -293,8 +293,24 @@ URL: `consilium.app/passport/{uuid}` — Next.js static page, no auth required.
 | Owner-facing mobile app | ❌ Cut | Telegram IS the app |
 | Full PMS integration | ❌ Cut | CSV import for demo, roadmap slide for rest |
 | Payment processing | ❌ Cut | Out of scope |
-| User authentication | ❌ Cut | Hardcode one clinic for demo |
-| Multi-clinic enterprise | ❌ Cut | Post-hackathon story |
+| User authentication | ❌ Cut | Single-clinic per deploy; clinic identity is env-driven (`NEXT_PUBLIC_CLINIC_*` + `CLINIC_*`), not hardcoded |
+| Multi-clinic enterprise | ❌ Cut | Post-hackathon story — would need RLS + per-tenant Storage paths |
+
+---
+
+## 6.5 Production Hardening (post-audit)
+
+Single-tenant deploy, but tightened against the audit team's findings:
+
+| Concern | Mitigation |
+|---|---|
+| Clinic identity hardcoded | Server: `ENV.clinic.{id,name,doctor,phone}` from `lib/env.ts`. Client: `CLINIC` from `lib/clinic.ts` (Next inlines `NEXT_PUBLIC_CLINIC_*` at build). All UI strings + Telegram replies + sidecar prompts route through these. |
+| Telegram webhook open when secret unset | `app/api/telegram/webhook/route.ts` refuses to serve when `NODE_ENV=production` and `TELEGRAM_WEBHOOK_SECRET` is empty. Dev mode warns + accepts. |
+| SSRF via `imageUrls` to Claude vision | `lib/llm.ts isAllowedImageUrl` whitelists HTTPS origins matching `*.supabase.co/storage/v1/object/public/*` and `api.telegram.org`. Other URLs are dropped from the request body and a warning is logged. |
+| MIME spoofing on `/api/upload` | Server sniffs the first 16 bytes against PNG/JPEG/GIF/WebP magic numbers. Client-supplied `File.type` is ignored for security decisions. |
+| Photo URLs in production logs | Webhook log records `photos=N` count, not URLs (public Storage links bypass auth and shouldn't sit in SIEM history). |
+| Correction payloads in logs | `/api/corrections` logs only feature + approved + rejection_reason — clinical text and `glm_output` never hit stdout. |
+| Sidecar prompt sign-off hardcoded | `agent/core/prompts.py` uses `TRIAGE_SYSTEM_TEMPLATE.format(clinic_name=...)`; `lib/agent.ts` forwards `ENV.clinic.name` in every request. |
 
 ---
 

@@ -13,6 +13,7 @@ import {
   FONT_SERIF,
   RADIUS,
 } from "@/lib/tokens";
+import { CLINIC } from "@/lib/clinic";
 
 /* ------------------------------------------------------------------
    Identity row — two-column labeled list (mono label small caps +
@@ -424,7 +425,7 @@ function PassportContent() {
                 fontFamily: FONT_MONO,
               }}
             >
-              PawsClinic KL · Updated 20 Apr 2026
+              {CLINIC.name} · Updated 20 Apr 2026
             </div>
           </div>
 
@@ -672,7 +673,7 @@ function PassportContent() {
                     letterSpacing: 0.2,
                   }}
                 >
-                  Dr. Amirah Yusoff · 14 Mar 2026
+                  {CLINIC.doctor} · 14 Mar 2026
                 </div>
               </div>
             </BookletSection>
@@ -714,7 +715,7 @@ function PassportContent() {
                     color: C.text,
                   }}
                 >
-                  PawsClinic KL
+                  {CLINIC.name}
                 </div>
                 <div
                   style={{
@@ -724,7 +725,7 @@ function PassportContent() {
                     marginTop: 4,
                   }}
                 >
-                  +60 12 345 6789
+                  {CLINIC.phone}
                 </div>
                 <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
                   Open daily 9am – 9pm · 24h emergency line available

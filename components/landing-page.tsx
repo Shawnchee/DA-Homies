@@ -20,6 +20,7 @@ import {
   FONT_SERIF,
   SHADOW_CARD,
 } from "@/lib/tokens";
+import { CLINIC } from "@/lib/clinic";
 
 /* ───────────────────────── shared helpers ───────────────────────── */
 
@@ -518,7 +519,7 @@ function Hero({
             }}
           >
             <FlatBadge
-              title="Escalate → Dr. Amirah"
+              title={`Escalate → ${CLINIC.doctor}`}
               sub="Post-spay Day 2 · wound check"
               dotColor={C.red}
               pulsing
@@ -1520,7 +1521,7 @@ function F6Mock() {
               fontFamily: FONT_MONO,
             }}
           >
-            PawsClinic KL · Updated 20 Apr 2026
+            {CLINIC.name} · Updated 20 Apr 2026
           </div>
         </div>
         <div
@@ -1539,7 +1540,7 @@ function F6Mock() {
       <KV k="Active meds" v="Otomax — Day 3 of 7" />
       <KV k="Last diagnosis" v="Ear infection — recovering" />
       <KV k="Notes" v="Check right ear, declined dental ×2" />
-      <KV k="Emergency" v="PawsClinic · +60 12 345 6789" />
+      <KV k="Emergency" v={`${CLINIC.name} · ${CLINIC.phone}`} />
     </FrameMock>
   );
 }

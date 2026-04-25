@@ -14,6 +14,25 @@ const read = (k: string): string => process.env[k]?.trim() ?? "";
 export const ENV = {
   appUrl: read("NEXT_PUBLIC_APP_URL") || "http://localhost:3000",
   mockModeRaw: read("MOCK_MODE"),
+  nodeEnv: read("NODE_ENV") || "development",
+
+  // Single-clinic deployment config. Client components read the
+  // NEXT_PUBLIC_* mirrors (this same object — Next inlines them at build).
+  // Defaults preserve the demo PawsClinic identity so a fresh clone still
+  // builds and demos out of the box.
+  clinic: {
+    id: read("CLINIC_ID") || read("NEXT_PUBLIC_CLINIC_ID") || "pawsclinic_kl",
+    name:
+      read("NEXT_PUBLIC_CLINIC_NAME") || read("CLINIC_NAME") || "PawsClinic KL",
+    doctor:
+      read("NEXT_PUBLIC_CLINIC_DOCTOR") ||
+      read("CLINIC_DOCTOR") ||
+      "Dr. Amirah",
+    phone:
+      read("NEXT_PUBLIC_CLINIC_PHONE") ||
+      read("CLINIC_PHONE") ||
+      "+60 12 345 6789",
+  },
 
   anthropic: {
     apiKey: read("ANTHROPIC_API_KEY"),
@@ -64,6 +83,10 @@ export function isMockMode(): boolean {
   if (ENV.mockModeRaw === "true") return true;
   if (ENV.mockModeRaw === "false") return false;
   return !hasLLM();
+}
+
+export function isProduction(): boolean {
+  return ENV.nodeEnv === "production";
 }
 
 /**

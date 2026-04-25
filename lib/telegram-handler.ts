@@ -25,7 +25,7 @@
 
 import { callGLM } from "./glm";
 import { callTriageAgent, isAgentEnabled } from "./agent";
-import { hasSupabaseAdmin } from "./env";
+import { ENV, hasSupabaseAdmin } from "./env";
 import { getSupabaseServer } from "./supabase";
 import { fetchTelegramPhotoAsImage } from "./telegram";
 import type { LLMImage } from "./llm";
@@ -35,11 +35,6 @@ import type {
   TriageToolCall,
 } from "./glm-fixtures";
 import type { ConversationTurn, FollowUpLevel } from "./types";
-
-// Single-clinic demo — the agent's PostgresStore namespace is
-// ("consultations", clinic_id, patient_id), so this string just needs
-// to be stable across writes and reads.
-const DEMO_CLINIC_ID = "pawsclinic_kl";
 
 export interface HandleOwnerMessageResult {
   reply: string;
@@ -66,7 +61,7 @@ type FollowupRowMini = {
 };
 
 const UNLINKED_REPLY = (chatId: string) =>
-  `Hi — your chat (id ${chatId}) isn't linked to an active case yet. Share this id with PawsClinic KL reception and we'll pair it to your pet's follow-up. — PawsClinic KL`;
+  `Hi — your chat (id ${chatId}) isn't linked to an active case yet. Share this id with ${ENV.clinic.name} reception and we'll pair it to your pet's follow-up. — ${ENV.clinic.name}`;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -325,7 +320,8 @@ async function runTriage(p: RunTriageParams): Promise<TriageFixtureOutput> {
       return await callTriageAgent({
         followupId: p.followupId,
         patientId: p.patientId,
-        clinicId: DEMO_CLINIC_ID,
+        clinicId: ENV.clinic.id,
+        clinicName: ENV.clinic.name,
         chatId: p.chatId,
         text: p.text,
         patientName: p.patientName,

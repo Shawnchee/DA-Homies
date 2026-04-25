@@ -61,6 +61,7 @@ async def triage(req: TriageRequest) -> TriageOutput:
     initial = {
         "patient_id": req.patient_id,
         "clinic_id": req.clinic_id,
+        "clinic_name": req.clinic_name or "the clinic",
         "patient_name": req.patient_name or "your pet",
         "text": req.text,
         "tool_call_count": req.tool_call_count,

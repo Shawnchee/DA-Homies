@@ -17,7 +17,7 @@
 
 import { ApiError } from "@/lib/api-types";
 import { errorResponse, json } from "@/lib/api-response";
-import { ENV, hasTelegram } from "@/lib/env";
+import { ENV, hasTelegram, isProduction } from "@/lib/env";
 import { handleOwnerMessage } from "@/lib/telegram-handler";
 import { sendTelegramMessage } from "@/lib/telegram";
 
@@ -44,7 +44,21 @@ export async function POST(req: Request) {
   try {
     if (!hasTelegram()) throw new ApiError(503, "telegram not configured");
 
-    if (ENV.telegram.webhookSecret) {
+    // Secret enforcement: required in production, recommended in dev.
+    // Telegram echoes the secret in `x-telegram-bot-api-secret-token` on every
+    // call, so the only way to spoof an update is to know it. An unset secret
+    // in prod would leave the webhook open to anyone — refuse to serve.
+    if (!ENV.telegram.webhookSecret) {
+      if (isProduction()) {
+        throw new ApiError(
+          503,
+          "TELEGRAM_WEBHOOK_SECRET must be set in production",
+        );
+      }
+      console.warn(
+        "[webhook] TELEGRAM_WEBHOOK_SECRET unset — accepting unauthenticated updates (dev only)",
+      );
+    } else {
       const hdr = req.headers.get("x-telegram-bot-api-secret-token");
       if (hdr !== ENV.telegram.webhookSecret) {
         throw new ApiError(401, "bad secret");
@@ -77,9 +91,11 @@ export async function POST(req: Request) {
     );
     await sendTelegramMessage(chatId, reply);
 
+    // Don't log photo URLs — they're public bucket links that bypass auth and
+    // can leak into logs/SIEM. Just record presence and count.
     console.log(
       `[webhook] chat=${chatId} decision=${decision} followup=${followupId ?? "(unlinked)"}` +
-        (photoUrls?.length ? ` photo=${photoUrls[0]}` : ""),
+        (photoUrls?.length ? ` photos=${photoUrls.length}` : ""),
     );
     return json({ ok: true, decision });
   } catch (err) {
