@@ -10,6 +10,7 @@ import {
   SkeletonPatientRow,
 } from "@/components/app-shell/skeleton";
 import { ErrorBanner } from "@/components/app-shell/error-banner";
+import { CLINIC } from "@/lib/clinic";
 import { C, FONT_SERIF, FONT_MONO } from "@/lib/tokens";
 import type { MetricCardData, Patient } from "@/lib/types";
 
@@ -55,7 +56,7 @@ function HeroRow({ escalationCount }: { escalationCount: number }) {
             lineHeight: 1.08,
           }}
         >
-          Good morning, Dr. Amirah.
+          Good morning, {CLINIC.doctor}.
         </h1>
         <div
           style={{
@@ -65,7 +66,7 @@ function HeroRow({ escalationCount }: { escalationCount: number }) {
             letterSpacing: 0.1,
           }}
         >
-          PawsClinic KL
+          {CLINIC.name}
           <span style={{ margin: "0 10px", color: C.hint }}>·</span>
           Tue 21 Apr 2026
         </div>

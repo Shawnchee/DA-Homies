@@ -4,19 +4,28 @@
  * Flow:
  *   1. Resolve a followup row via `telegram_chat_id`.
  *   2. Append the owner turn to `conversation`.
- *   3. Run triage. If fixture returns `tool_call` (and we haven't already
+ *   3. Run triage. If returns `tool_call` (and we haven't already
  *      spent our one allowed info-gathering turn), append bot_tool turn,
  *      increment tool_call_count, return the tool prompt. Status stays
  *      `pending` — no escalation yet.
- *   4. If fixture returns `decision`, append bot_decision turn, update the
+ *   4. If returns `decision`, append bot_decision turn, update the
  *      row's status + triage fields, return the reply draft.
  *
- * Every path emits a boxed console log so the terminal shows the agent's
- * reasoning to the judges in real time.
+ * Triage backend selection (`runTriage`):
+ *   - LangGraph Python sidecar when `LANGGRAPH_SERVICE_URL` is set.
+ *   - `callGLM` (Claude or fixture) otherwise, or as a fallback if the
+ *     sidecar errors out.
+ *
+ * Owner photos: when `photoFileIds` are supplied, each is downloaded via
+ * the Telegram Bot API, persisted to the `owner-photos` Supabase Storage
+ * bucket, and forwarded to Claude vision in the fallback path. (The
+ * sidecar contract doesn't carry images yet — TODO if we want vision in
+ * the LangGraph path.)
  */
 
 import { callGLM } from "./glm";
-import { hasSupabaseAdmin } from "./env";
+import { callTriageAgent, isAgentEnabled } from "./agent";
+import { ENV, hasSupabaseAdmin } from "./env";
 import { getSupabaseServer } from "./supabase";
 import { fetchTelegramPhotoAsImage } from "./telegram";
 import type { LLMImage } from "./llm";
@@ -48,10 +57,11 @@ type FollowupRowMini = {
   id: string;
   conversation: unknown;
   tool_call_count: number | null;
+  visits: { patient_id: string; patients: { name: string | null } | null } | null;
 };
 
 const UNLINKED_REPLY = (chatId: string) =>
-  `Hi — your chat (id ${chatId}) isn't linked to an active case yet. Share this id with PawsClinic KL reception and we'll pair it to your pet's follow-up. — PawsClinic KL`;
+  `Hi — your chat (id ${chatId}) isn't linked to an active case yet. Share this id with ${ENV.clinic.name} reception and we'll pair it to your pet's follow-up. — ${ENV.clinic.name}`;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -128,7 +138,8 @@ export async function handleOwnerMessage(
 ): Promise<HandleOwnerMessageResult> {
   const input: OwnerMessageInput =
     typeof textOrInput === "string" ? { text: textOrInput } : textOrInput;
-  const text = input.text || (input.photoFileIds?.length ? "(photo only — no caption)" : "");
+  const text =
+    input.text || (input.photoFileIds?.length ? "(photo only — no caption)" : "");
   let row: FollowupRowMini | null = null;
 
   if (hasSupabaseAdmin()) {
@@ -136,7 +147,9 @@ export async function handleOwnerMessage(
       const db = getSupabaseServer();
       const { data } = await db
         .from("followups")
-        .select("id, conversation, tool_call_count")
+        .select(
+          "id, conversation, tool_call_count, visits!inner(patient_id, patients!inner(name))",
+        )
         .eq("telegram_chat_id", chatId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -156,6 +169,8 @@ export async function handleOwnerMessage(
   const conv = parseConversation(row.conversation);
   const toolCallCount = row.tool_call_count ?? 0;
   const turnIndex = conv.length + 1;
+  const patientId = row.visits?.patient_id ?? null;
+  const patientName = row.visits?.patients?.name ?? "your pet";
   logInbound(chatId, text, turnIndex);
 
   // Resolve any owner-sent photos. Each file_id → owner-photos bucket → URL
@@ -175,7 +190,9 @@ export async function handleOwnerMessage(
       );
     }
   }
-  const photoUrls = images.map((i) => i.url).filter((u): u is string => Boolean(u));
+  const photoUrls = images
+    .map((i) => i.url)
+    .filter((u): u is string => Boolean(u));
 
   const ownerTurn: ConversationTurn = {
     role: "owner",
@@ -183,19 +200,16 @@ export async function handleOwnerMessage(
     ts: nowIso(),
   };
 
-  const fixtureContext = {
+  const result = await runTriage({
+    text,
+    chatId,
+    followupId: row.id,
+    patientId,
+    patientName,
     toolCallCount,
-    conversationText: conversationText(conv),
-    patientName: (await fetchPatientName(row.id)) ?? "your pet",
-  };
-
-  const glmResult = await callGLM<TriageFixtureOutput>({
-    feature: "triage",
-    user: text,
-    context: fixtureContext,
+    priorConversation: conv,
     images: images.length > 0 ? images : undefined,
   });
-  const result = glmResult.data;
 
   /* ─── tool-call branch ────────────────────────────────────────────── */
   if (result.kind === "tool_call") {
@@ -277,21 +291,60 @@ export async function handleOwnerMessage(
   };
 }
 
-/* ─── helpers ─────────────────────────────────────────────────────────── */
+/* ─── triage dispatcher ───────────────────────────────────────────────── */
 
-async function fetchPatientName(followupId: string): Promise<string | null> {
-  if (!hasSupabaseAdmin()) return null;
-  try {
-    const db = getSupabaseServer();
-    const { data } = await db
-      .from("followups")
-      .select("visits!inner(patients!inner(name))")
-      .eq("id", followupId)
-      .maybeSingle();
-    const visits = (data as { visits?: { patients?: { name?: string } } } | null)
-      ?.visits;
-    return visits?.patients?.name ?? null;
-  } catch {
-    return null;
+interface RunTriageParams {
+  text: string;
+  chatId: string;
+  followupId: string;
+  patientId: string | null;
+  patientName: string;
+  toolCallCount: number;
+  priorConversation: ConversationTurn[];
+  /** Owner-attached photos (Telegram → owner-photos bucket → Claude vision). */
+  images?: LLMImage[];
+}
+
+/**
+ * Pick the LangGraph sidecar when LANGGRAPH_SERVICE_URL is set; fall back
+ * to the in-process callGLM path on any sidecar error so the demo keeps
+ * working even if the Python service is down.
+ *
+ * Note: the sidecar contract doesn't currently carry images. When photos
+ * are present we still try the sidecar (text-only) but only the fallback
+ * Claude path actually sees them. TODO: extend agent.ts request schema.
+ */
+async function runTriage(p: RunTriageParams): Promise<TriageFixtureOutput> {
+  if (isAgentEnabled() && p.patientId) {
+    try {
+      return await callTriageAgent({
+        followupId: p.followupId,
+        patientId: p.patientId,
+        clinicId: ENV.clinic.id,
+        clinicName: ENV.clinic.name,
+        chatId: p.chatId,
+        text: p.text,
+        patientName: p.patientName,
+        toolCallCount: p.toolCallCount,
+        priorConversation: p.priorConversation,
+      });
+    } catch (err) {
+      console.warn(
+        "[telegram-handler] sidecar failed, falling back to callGLM:",
+        err,
+      );
+    }
   }
+
+  const glmResult = await callGLM<TriageFixtureOutput>({
+    feature: "triage",
+    user: p.text,
+    context: {
+      toolCallCount: p.toolCallCount,
+      conversationText: conversationText(p.priorConversation),
+      patientName: p.patientName,
+    },
+    images: p.images,
+  });
+  return glmResult.data;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/atoms";
 import { BORDER_HAIRLINE, C, FONT_SERIF } from "@/lib/tokens";
+import { CLINIC } from "@/lib/clinic";
 import { useStore } from "./store";
 
 export default function Header() {
@@ -147,14 +148,14 @@ export default function Header() {
           paddingLeft: 16,
         }}
       >
-        PawsClinic KL · Mon 20 Apr
+        {CLINIC.name} · Mon 20 Apr
       </div>
 
       {/* Doctor identity */}
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text }}>
-            Dr. Amirah
+            {CLINIC.doctor}
           </div>
           <div style={{ fontSize: 11, color: C.muted }}>Lead veterinarian</div>
         </div>

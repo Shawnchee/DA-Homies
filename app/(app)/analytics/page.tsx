@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/app-shell/page-header";
 import { Skeleton } from "@/components/app-shell/skeleton";
 import { ErrorBanner } from "@/components/app-shell/error-banner";
 import { api } from "@/lib/api";
+import { CLINIC } from "@/lib/clinic";
 import type { CorrectionRow, DiagnosisRow } from "@/lib/types";
 import {
   BORDER_HAIRLINE,
@@ -874,7 +875,7 @@ export default function AnalyticsPage() {
       <PageHeader
         eyebrow="Analytics · April 2026"
         title="The clinic, in numbers."
-        sub="Live across 3 doctors · PawsClinic KL · validated against a keyword baseline on 50 Telegram scenarios."
+        sub={`Live across 3 doctors · ${CLINIC.name} · validated against a keyword baseline on 50 Telegram scenarios.`}
         right={
           <div style={{ display: "flex", gap: 8 }}>
             <Button variant="ghost" size="sm">
@@ -1064,7 +1065,7 @@ export default function AnalyticsPage() {
       >
         <span>CONSILIUM · ANALYTICS</span>
         <span style={{ color: C.border }}>·</span>
-        <span>Clinic: PawsClinic KL</span>
+        <span>Clinic: {CLINIC.name}</span>
         <span style={{ color: C.border }}>·</span>
         <span>Period: 01 Apr – 20 Apr 2026</span>
         <span style={{ color: C.border }}>·</span>

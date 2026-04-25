@@ -9,7 +9,13 @@ export async function POST(req: Request) {
     });
     const correction = parseCorrectionRequest(body);
     const id = `mock-correction-${Date.now()}`;
-    console.log("[corrections]", id, correction);
+    // Don't log full correction payload — glmOutput / doctorCorrection may
+    // contain patient PII and clinical text. Just record the categorical
+    // fact (which feature, approve vs reject) for debug visibility.
+    console.log(
+      `[corrections] ${id} feature=${correction.feature} approved=${correction.approved}` +
+        (correction.rejectionReason ? ` reason=${correction.rejectionReason}` : ""),
+    );
     return json<CorrectionResponse>({ ok: true, id });
   } catch (err) {
     return errorResponse(err);

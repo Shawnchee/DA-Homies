@@ -22,7 +22,7 @@ loadEnvConfig(process.cwd());
     process.exit(1);
   }
 
-  const { hasSupabaseAdmin, hasTelegram } = await import("../lib/env");
+  const { ENV, hasSupabaseAdmin, hasTelegram } = await import("../lib/env");
   if (!hasTelegram()) throw new Error("TELEGRAM_BOT_TOKEN missing");
   if (!hasSupabaseAdmin()) throw new Error("Supabase admin not configured");
 
@@ -67,7 +67,7 @@ loadEnvConfig(process.cwd());
     .maybeSingle<{ id: string }>();
   if (fuErr) throw fuErr;
 
-  const opener = `Hi ${patient.owner_name ?? "there"}, this is PawsClinic KL checking in 24h after ${patient.name}'s visit. How are they doing? Any concerns with appetite, energy, or the treatment site? Reply any time.`;
+  const opener = `Hi ${patient.owner_name ?? "there"}, this is ${ENV.clinic.name} checking in 24h after ${patient.name}'s visit. How are they doing? Any concerns with appetite, energy, or the treatment site? Reply any time.`;
 
   await sendTelegramMessage(chatId, opener);
   console.log(

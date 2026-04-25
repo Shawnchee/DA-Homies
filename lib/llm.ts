@@ -138,6 +138,12 @@ async function realPath<T>(params: CallGLMParams): Promise<CallGLMResult<T>> {
   const tools = registryFor(params.feature);
   const toolSpecs = tools.map((t) => t.spec);
 
+  // For features whose only tool is the emit_* output (currently brief),
+  // force the model to call it. Otherwise Sonnet/Haiku will sometimes
+  // return free-text "I need more info..." instead of best-effort emitting.
+  const emitOnly =
+    tools.length === 1 && tools[0].handling === "emit" ? tools[0].spec.name : null;
+
   const system = buildSystem(params);
   const userContent = buildUserContent(params);
 
@@ -158,6 +164,9 @@ async function realPath<T>(params: CallGLMParams): Promise<CallGLMResult<T>> {
       max_tokens: MAX_TOKENS,
       system,
       tools: toolSpecs as Anthropic.Tool[],
+      tool_choice: emitOnly
+        ? ({ type: "tool", name: emitOnly } as Anthropic.ToolChoice)
+        : undefined,
       messages: messages as Anthropic.MessageParam[],
     })) as Anthropic.Message;
     lastResponse = response;
@@ -303,6 +312,33 @@ function buildSystem(params: CallGLMParams): string {
   return system;
 }
 
+/**
+ * Validate an image URL before forwarding to Claude vision.
+ *
+ * Rejects: non-https, file://, data:, IP literals, and origins outside the
+ * allowlist (Supabase Storage public URL + Telegram file CDN). Without this
+ * an /api/consult caller could pass an attacker-controlled `imageUrls` and
+ * exfiltrate via Anthropic's outbound fetch (SSRF) or have the model react
+ * to malicious image content from arbitrary hosts.
+ */
+function isAllowedImageUrl(rawUrl: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname;
+  // Telegram CDN — used by the Telegram photo download path.
+  if (host === "api.telegram.org") return true;
+  // Supabase Storage public URL — `<project>.supabase.co` (any subdomain).
+  if (host.endsWith(".supabase.co") || host.endsWith(".supabase.in")) {
+    return parsed.pathname.startsWith("/storage/v1/object/public/");
+  }
+  return false;
+}
+
 function buildUserContent(
   params: CallGLMParams,
 ): string | AnthropicContentBlock[] {
@@ -310,6 +346,12 @@ function buildUserContent(
   const blocks: AnthropicContentBlock[] = [];
   for (const img of params.images) {
     if (img.url) {
+      if (!isAllowedImageUrl(img.url)) {
+        console.warn(
+          `[llm] rejecting image URL outside allowlist: ${img.url.slice(0, 80)}`,
+        );
+        continue;
+      }
       blocks.push({
         type: "image",
         source: { type: "url", url: img.url },
@@ -326,6 +368,9 @@ function buildUserContent(
     }
   }
   blocks.push({ type: "text", text: params.user });
+  // If every URL was rejected, fall back to text-only so the call still goes
+  // through (the model just won't see an image).
+  if (blocks.length === 1) return params.user;
   return blocks;
 }
 
