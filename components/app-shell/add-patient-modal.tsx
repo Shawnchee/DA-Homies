@@ -38,13 +38,20 @@ export function AddPatientModal({ onClose }: { onClose: () => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    const parsedAge = parseInt(age, 10);
+    if (isNaN(parsedAge) || parsedAge < 0) {
+      setError("Please enter a valid age");
+      return;
+    }
+
     setLoading(true);
     try {
       await api.createPatient({
         name,
         species,
         breed,
-        age: parseInt(age, 10) || 0,
+        age: parsedAge,
         sex,
         ownerName,
         ownerPhone,

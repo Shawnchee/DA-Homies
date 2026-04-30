@@ -36,8 +36,8 @@ export function parseCreatePatientRequest(raw: unknown): CreatePatientRequest {
   if (typeof r.name !== "string" || !r.name.trim()) throw new ApiError(400, "name required");
   if (typeof r.species !== "string") throw new ApiError(400, "species required");
   if (typeof r.breed !== "string") throw new ApiError(400, "breed required");
-  if (typeof r.age !== "number") throw new ApiError(400, "age must be a number");
-  if (r.sex !== "Male" && r.sex !== "Female") throw new ApiError(400, "sex must be Male or Female");
+  if (typeof r.age !== "number" || !Number.isFinite(r.age) || r.age < 0)
+    throw new ApiError(400, "age must be a non-negative number"); if (r.sex !== "Male" && r.sex !== "Female") throw new ApiError(400, "sex must be Male or Female");
   if (typeof r.ownerName !== "string" || !r.ownerName.trim()) throw new ApiError(400, "ownerName required");
   if (typeof r.ownerPhone !== "string") throw new ApiError(400, "ownerPhone required");
 
