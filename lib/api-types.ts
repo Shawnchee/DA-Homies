@@ -96,6 +96,58 @@ export function parseConsultCaptureRequest(raw: unknown): ConsultCaptureRequest 
   };
 }
 
+// ─── /api/consult/telegram-send ─────────────────────────────────────────────
+export interface TelegramSendRequest {
+  /** Telegram chat ID to send to. Numeric string for user chats; @username also accepted. */
+  chatId: string;
+  /** The owner-facing message body (already has {clinic} interpolated by the caller). */
+  body: string;
+  /** Optional aftercare bullets appended below the body. */
+  aftercare?: string[];
+  /** Patient whose owner_telegram should be back-written on success. */
+  patientId: string;
+  /** Optional visit reference for audit. Not yet persisted but reserved. */
+  visitId?: string;
+}
+export interface TelegramSendResponse {
+  ok: true;
+  messageId: number;
+  chatIdSaved: boolean;
+}
+export function parseTelegramSendRequest(raw: unknown): TelegramSendRequest {
+  const r = raw as Partial<TelegramSendRequest>;
+  if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
+  if (typeof r.chatId !== "string" || !r.chatId.trim())
+    throw new ApiError(400, "chatId required");
+  // Accept either numeric ("123456789", "-1001234567890") or @username form.
+  // Reject anything else early so we don't lean on Telegram's API for validation.
+  const chatId = r.chatId.trim();
+  const numeric = /^-?\d+$/.test(chatId);
+  const username = /^@[a-zA-Z0-9_]{4,32}$/.test(chatId);
+  if (!numeric && !username)
+    throw new ApiError(400, "chatId must be numeric or @username");
+  if (typeof r.body !== "string" || !r.body.trim())
+    throw new ApiError(400, "body required");
+  if (typeof r.patientId !== "string" || !r.patientId)
+    throw new ApiError(400, "patientId required");
+  let aftercare: string[] | undefined;
+  if (r.aftercare !== undefined) {
+    if (
+      !Array.isArray(r.aftercare) ||
+      r.aftercare.some((s) => typeof s !== "string")
+    )
+      throw new ApiError(400, "aftercare must be string[]");
+    aftercare = r.aftercare as string[];
+  }
+  return {
+    chatId,
+    body: r.body,
+    aftercare,
+    patientId: r.patientId,
+    visitId: typeof r.visitId === "string" ? r.visitId : undefined,
+  };
+}
+
 // ─── /api/triage ────────────────────────────────────────────────────────────
 export interface TriageRequest {
   followupId: string;
