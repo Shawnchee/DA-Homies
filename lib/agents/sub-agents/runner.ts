@@ -13,7 +13,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ENV, hasLLM, hasTavily, isMockMode } from "../../env";
 import { tavilyTool, executeTavily, type TavilyArgs } from "../../tools/tavily";
-import type { LLMImage } from "../../llm";
+import { isAllowedImageUrl, type LLMImage } from "../../llm";
 import type { SubAgentMeta, TokenUsage } from "./types";
 
 const SUB_AGENT_MODEL = ENV.anthropic.modelBrief; // Haiku 4.5
@@ -255,6 +255,17 @@ function buildUserContent(
   const blocks: AnthropicContentBlock[] = [];
   for (const img of images) {
     if (img.url) {
+      // SSRF guard: same allowlist as the legacy /api/consult path —
+      // without this, a caller could pass attacker-controlled URLs and
+      // have Anthropic's outbound fetcher pull arbitrary origins
+      // server-to-server (or feed malicious vision content into the
+      // multi-agent loop). Reject silently and fall back to text-only.
+      if (!isAllowedImageUrl(img.url)) {
+        console.warn(
+          `[runner] rejecting image URL outside allowlist: ${img.url.slice(0, 80)}`,
+        );
+        continue;
+      }
       blocks.push({ type: "image", source: { type: "url", url: img.url } });
     } else if (img.base64) {
       blocks.push({
@@ -268,5 +279,6 @@ function buildUserContent(
     }
   }
   blocks.push({ type: "text", text });
+  if (blocks.length === 1) return text;
   return blocks;
 }
