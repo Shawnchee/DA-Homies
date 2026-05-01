@@ -548,7 +548,19 @@ function QuickActions({ onAddPatient }: { onAddPatient: () => void }) {
               <QuickActionRow label={a.label} />
             </Link>
           ) : (
-            <div key={a.label} onClick={a.onClick}>
+            <div
+              key={a.label}
+              onClick={a.onClick}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  a.onClick?.();
+                }
+              }}
+            >
               <QuickActionRow label={a.label} />
             </div>
           )

@@ -34,7 +34,7 @@ export function parseCreatePatientRequest(raw: unknown): CreatePatientRequest {
   const r = raw as Partial<CreatePatientRequest>;
   if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
   if (typeof r.name !== "string" || !r.name.trim()) throw new ApiError(400, "name required");
-  if (typeof r.species !== "string") throw new ApiError(400, "species required");
+  if (typeof r.species !== "string" || !r.species.trim()) throw new ApiError(400, "species required");
   if (typeof r.breed !== "string") throw new ApiError(400, "breed required");
   if (typeof r.age !== "number" || !Number.isFinite(r.age) || r.age < 0)
     throw new ApiError(400, "age must be a non-negative number"); if (r.sex !== "Male" && r.sex !== "Female") throw new ApiError(400, "sex must be Male or Female");

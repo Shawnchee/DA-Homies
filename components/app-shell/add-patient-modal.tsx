@@ -236,11 +236,11 @@ export function AddPatientModal({ onClose }: { onClose: () => void }) {
                         overflow: "hidden",
                       }}
                     >
-                      {["Male", "Female"].map((option) => (
+                      {(["Male", "Female"] as const).map((option) => (
                         <div
                           key={option}
                           onClick={() => {
-                            setSex(option as any);
+                            setSex(option);
                             setSexDropdownOpen(false);
                           }}
                           style={{
