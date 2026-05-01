@@ -79,10 +79,22 @@ function formatMessage(body: string, aftercare: string[]): string {
 
 /**
  * Best-effort write of owner_telegram onto the patient row. Returns true
- * when the row was updated, false when the DB is unavailable / write
- * failed / row didn't exist (e.g. mock patient). Never throws — the
- * Telegram message has already been delivered, so a save failure must
- * not surface as an error to the doctor.
+ * when the row was updated, false when the DB is unavailable, write
+ * failed, row didn't exist (e.g. mock patient), or owner_telegram was
+ * already set on the patient. Never throws — the Telegram message has
+ * already been delivered, so a save failure must not surface as an
+ * error to the doctor.
+ *
+ * SECURITY: the update is gated to rows where owner_telegram IS NULL
+ * (option A — first-write-wins, no overwrite). Without this gate, an
+ * attacker who guesses a patient UUID could send a successful Telegram
+ * message to themselves and silently overwrite the real owner's chat
+ * ID — every subsequent owner-facing message would then go to the
+ * attacker. With this gate, the worst an attacker can do is claim a
+ * patient that has no chat ID on file yet; the doctor sees
+ * chatIdSaved=true even though they didn't expect a save. Real fix is
+ * auth in front of the route; this is the cheapest mitigation absent
+ * that.
  */
 async function saveChatIdToPatient(
   patientId: string,
@@ -95,12 +107,16 @@ async function saveChatIdToPatient(
       .from("patients")
       .update({ owner_telegram: chatId })
       .eq("id", patientId)
+      .is("owner_telegram", null)
       .select("id")
       .maybeSingle<{ id: string }>();
     if (error) throw error;
     return Boolean(data?.id);
   } catch (err) {
-    console.warn("[telegram-send] owner_telegram save failed", err);
+    console.warn(
+      "[telegram-send] owner_telegram save failed:",
+      err instanceof Error ? err.message : "unknown error",
+    );
     return false;
   }
 }
