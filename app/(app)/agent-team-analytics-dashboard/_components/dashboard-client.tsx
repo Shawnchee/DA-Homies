@@ -306,6 +306,13 @@ export default function AgentDashboardClient() {
       <Section title="Output" subtitle="What the doctor sees on the dashboard, and what the owner sees in Telegram.">
         <OutputPreview result={result} running={running} />
       </Section>
+
+      <Section
+        title="Review & send to owner"
+        subtitle="Doctor stays in control — confirm the chat ID, edit the message if needed, then deliver via Telegram. Saves the chat ID to the patient record on success."
+      >
+        <SendPanel result={result} fixturePatientId={fixture} />
+      </Section>
     </main>
   );
 }
@@ -1130,6 +1137,250 @@ function OutputPreview({
     </div>
   );
 }
+
+/* ── send panel ────────────────────────────────────────────────────── */
+
+type SendStatus =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | { kind: "sent"; messageId: number; chatIdSaved: boolean }
+  | { kind: "error"; message: string };
+
+function SendPanel({
+  result,
+  fixturePatientId,
+}: {
+  result: SessionCaptureResult | null;
+  fixturePatientId: string;
+}) {
+  const [chatId, setChatId] = useState("");
+  const [bodyDraft, setBodyDraft] = useState("");
+  const [aftercareDraft, setAftercareDraft] = useState("");
+  const [status, setStatus] = useState<SendStatus>({ kind: "idle" });
+  const lastResultId = useRef<string | null>(null);
+
+  // When a new pipeline run lands, reset the editable drafts to the
+  // orchestrator's latest output. Don't overwrite while the doctor is
+  // mid-edit on the same result.
+  if (result && result.visitId !== lastResultId.current) {
+    lastResultId.current = result.visitId;
+    setBodyDraft(result.summary.ownerMessage.body.replace(/\{clinic\}/g, CLINIC.name));
+    setAftercareDraft(result.summary.ownerMessage.aftercare.join("\n"));
+    setStatus({ kind: "idle" });
+  }
+
+  if (!result) {
+    return (
+      <div
+        style={{
+          background: C.card,
+          border: BORDER_HAIRLINE,
+          borderRadius: 12,
+          padding: "32px 24px",
+          textAlign: "center",
+          color: C.muted,
+          fontSize: 13,
+          boxShadow: SHADOW_CARD,
+        }}
+      >
+        Run the pipeline first — the doctor review-and-send panel appears once the orchestrator emits the draft.
+      </div>
+    );
+  }
+
+  const aftercareLines = aftercareDraft
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+
+  async function send() {
+    if (!chatId.trim()) {
+      setStatus({ kind: "error", message: "enter a Telegram chat ID first" });
+      return;
+    }
+    setStatus({ kind: "sending" });
+    try {
+      const res = await fetch("/api/consult/telegram-send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chatId: chatId.trim(),
+          body: bodyDraft,
+          aftercare: aftercareLines,
+          patientId: fixturePatientId,
+          visitId: result?.visitId,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: true;
+        messageId?: number;
+        chatIdSaved?: boolean;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || typeof json.messageId !== "number") {
+        throw new Error(json.error ?? `send failed (${res.status})`);
+      }
+      setStatus({
+        kind: "sent",
+        messageId: json.messageId,
+        chatIdSaved: Boolean(json.chatIdSaved),
+      });
+    } catch (err) {
+      setStatus({
+        kind: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const sending = status.kind === "sending";
+
+  return (
+    <div
+      style={{
+        background: C.card,
+        border: BORDER_HAIRLINE,
+        borderRadius: 12,
+        padding: 20,
+        boxShadow: SHADOW_CARD,
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) 360px",
+        gap: 24,
+      }}
+    >
+      {/* LEFT — editable drafts */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <SoapLabel>Owner message</SoapLabel>
+          <textarea
+            value={bodyDraft}
+            onChange={(e) => setBodyDraft(e.target.value)}
+            disabled={sending}
+            rows={5}
+            style={textareaStyle}
+          />
+          <div style={{ fontSize: 11, color: C.hint, marginTop: 4, fontFamily: FONT_MONO }}>
+            {bodyDraft.length} / 600 chars
+          </div>
+        </div>
+        <div>
+          <SoapLabel>Aftercare bullets (one per line)</SoapLabel>
+          <textarea
+            value={aftercareDraft}
+            onChange={(e) => setAftercareDraft(e.target.value)}
+            disabled={sending}
+            rows={4}
+            style={textareaStyle}
+            placeholder="Continue medication twice daily…"
+          />
+        </div>
+      </div>
+
+      {/* RIGHT — chat ID + send + status */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div>
+          <SoapLabel>Owner Telegram chat ID</SoapLabel>
+          <input
+            type="text"
+            value={chatId}
+            onChange={(e) => setChatId(e.target.value)}
+            disabled={sending}
+            placeholder="123456789 or @username"
+            style={{
+              ...textareaStyle,
+              fontFamily: FONT_MONO,
+              fontSize: 13,
+              padding: "10px 12px",
+            }}
+          />
+          <div style={{ fontSize: 11, color: C.hint, marginTop: 4 }}>
+            Ask the owner once — this saves to the patient record on success.
+          </div>
+        </div>
+        <button
+          onClick={send}
+          disabled={sending || !chatId.trim()}
+          style={{
+            background: sending || !chatId.trim() ? C.borderSoft : C.text,
+            color: sending || !chatId.trim() ? C.muted : "#FFFFFF",
+            border: "none",
+            borderRadius: 8,
+            padding: "12px 16px",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: sending || !chatId.trim() ? "not-allowed" : "pointer",
+            transition: "background 140ms ease",
+          }}
+        >
+          {sending ? "Sending…" : "Send to Telegram"}
+        </button>
+        <SendStatusBlock status={status} />
+      </div>
+    </div>
+  );
+}
+
+function SendStatusBlock({ status }: { status: SendStatus }) {
+  if (status.kind === "idle") return null;
+  if (status.kind === "sending") {
+    return (
+      <div style={{ fontSize: 12.5, color: C.muted }}>Sending via grammY…</div>
+    );
+  }
+  if (status.kind === "sent") {
+    return (
+      <div
+        style={{
+          padding: "10px 12px",
+          background: C.greenLight,
+          border: `1px solid ${C.greenBorder}`,
+          borderRadius: 8,
+          fontSize: 12.5,
+          color: C.greenDark,
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        <div style={{ fontWeight: 600 }}>
+          Delivered · message #{status.messageId}
+        </div>
+        <div style={{ color: C.muted, fontSize: 11.5 }}>
+          {status.chatIdSaved
+            ? "Chat ID saved to patient record."
+            : "Chat ID not saved (no Supabase admin or row not found)."}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      style={{
+        padding: "10px 12px",
+        background: C.redLight,
+        border: `1px solid ${C.redBorder}`,
+        borderRadius: 8,
+        fontSize: 12.5,
+        color: C.red,
+      }}
+    >
+      {status.message}
+    </div>
+  );
+}
+
+const textareaStyle: React.CSSProperties = {
+  width: "100%",
+  background: "#FFFFFF",
+  border: BORDER_HAIRLINE,
+  borderRadius: 8,
+  padding: "10px 12px",
+  fontSize: 13,
+  color: C.text,
+  lineHeight: 1.5,
+  resize: "vertical" as const,
+  fontFamily: "inherit",
+};
 
 function SoapBlock({ soap }: { soap: { S: string; O: string; A: string; P: string } }) {
   return (
