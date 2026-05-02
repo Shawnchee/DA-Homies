@@ -788,11 +788,131 @@ function ChipBtn({
   );
 }
 
+/**
+ * Parse a prescription dose string for its frequency marker and return
+ * the matching preset id + suggested times. Handles common veterinary
+ * shorthand: SID/q24h (1x), BID/q12h (2x), TID/q8h (3x), QID/q6h (4x),
+ * "every 8 hours" (3x), etc. Falls back to "once_daily" if nothing
+ * matches so the schedule is never empty.
+ */
+function parseRxFrequency(dose: string): {
+  preset: (typeof MED_PRESETS)[number]["id"];
+  times: string[];
+  intervalHours: number;
+} {
+  const d = dose.toLowerCase();
+  if (/\bqid\b|\bq6h?\b|every\s*6\s*h(?:our)?s?/.test(d))
+    return { preset: "every_8h", times: ["00:00", "06:00", "12:00", "18:00"], intervalHours: 6 };
+  if (/\btid\b|\bq8h?\b|every\s*8\s*h(?:our)?s?/.test(d))
+    return { preset: "every_8h", times: ["08:00", "16:00", "00:00"], intervalHours: 8 };
+  if (/\bbid\b|\bq12h?\b|twice\s*(?:a\s*)?(?:day|daily)/.test(d))
+    return { preset: "twice_daily", times: ["08:00", "20:00"], intervalHours: 12 };
+  if (/\bsid\b|\bq24h?\b|once\s*(?:a\s*)?(?:day|daily)|\bod\b/.test(d))
+    return { preset: "once_daily", times: ["08:00"], intervalHours: 24 };
+  if (/\bprn\b|as\s*needed/.test(d))
+    return { preset: "once_daily", times: ["08:00"], intervalHours: 24 };
+  return { preset: "once_daily", times: ["08:00"], intervalHours: 24 };
+}
+
+/** Parse a duration string like "7 days", "2 weeks", "5d" → number of days. */
+function parseRxDuration(dur: string): number {
+  const m = dur.toLowerCase().match(/(\d+)\s*(d|day|days|w|wk|week|weeks)/);
+  if (!m) return 7;
+  const n = parseInt(m[1], 10);
+  if (!Number.isFinite(n)) return 7;
+  if (/w/.test(m[2])) return n * 7;
+  return n;
+}
+
+/**
+ * Send-now row used inside the medication schedule card. Renders a
+ * primary button that fires a one-shot Telegram message via
+ * /api/consult/telegram-send and shows immediate status feedback. For
+ * demo / testing only — production flow goes through the actual
+ * scheduled cron, not on-demand.
+ */
+function SendNowRow({
+  label,
+  disabled,
+  state,
+  onSend,
+  hint,
+}: {
+  label: string;
+  disabled: boolean;
+  state:
+    | { kind: "idle" }
+    | { kind: "sending" }
+    | { kind: "sent"; messageId: number }
+    | { kind: "error"; message: string };
+  onSend: () => void;
+  hint?: string;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+      <button
+        type="button"
+        onClick={onSend}
+        disabled={disabled || state.kind === "sending"}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          padding: "9px 14px",
+          borderRadius: 8,
+          background:
+            disabled || state.kind === "sending" ? C.borderSoft : C.brand,
+          color:
+            disabled || state.kind === "sending" ? C.muted : "#FFFFFF",
+          border: "none",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor:
+            disabled || state.kind === "sending" ? "not-allowed" : "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        {state.kind === "sending" ? "Sending…" : label}
+      </button>
+      {state.kind === "sent" && (
+        <div
+          style={{
+            fontSize: 11.5,
+            color: C.greenDark,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          ✓ Sent · message #{state.messageId}
+        </div>
+      )}
+      {state.kind === "error" && (
+        <div style={{ fontSize: 11.5, color: C.red }}>{state.message}</div>
+      )}
+      {state.kind === "idle" && hint && (
+        <div style={{ fontSize: 11, color: C.hint }}>{hint}</div>
+      )}
+    </div>
+  );
+}
+
 function MedicationScheduleCard({
   patient,
+  prescription,
+  chatId,
   onSubmit,
 }: {
   patient: Patient;
+  /** Live prescription items from the orchestrator output. Used to
+   *  pre-populate the schedule frequency + duration so the doctor
+   *  doesn't re-enter what's already in the Rx card above. */
+  prescription?: PrescriptionItem[];
+  /** Owner's Telegram chat id — controls whether the Send buttons
+   *  are enabled. Resolved by the parent (patient.ownerTelegram or
+   *  localStorage). */
+  chatId?: string;
   onSubmit: (payload: MedSchedulePayload) => void;
 }) {
   const [presetId, setPresetId] =
@@ -817,6 +937,96 @@ function MedicationScheduleCard({
   useEffect(() => {
     setFollowupFirst(startDate);
   }, [startDate]);
+
+  // Pre-populate the schedule from the first prescription item the
+  // moment one arrives. Parses BID/SID/q8h/etc. + duration to set the
+  // preset, times, intervalHours, durDays, and notes (drug name +
+  // dose). Runs only once per prescription identity so doctor edits
+  // are preserved during a session.
+  const firstRx = prescription?.[0];
+  const rxKey = firstRx ? `${firstRx.drug}|${firstRx.dose}|${firstRx.dur}` : "";
+  useEffect(() => {
+    if (!firstRx) return;
+    const { preset, times: t, intervalHours: ih } = parseRxFrequency(firstRx.dose);
+    setPresetId(preset);
+    setTimes(t);
+    setIntervalHours(ih);
+    const days = parseRxDuration(firstRx.dur);
+    setDurKind("days");
+    setDurDays(days);
+    setNotes(`${firstRx.drug} · ${firstRx.dose} · ${firstRx.dur}`);
+  }, [rxKey, firstRx]);
+
+  // Send-button states for both columns. Each flips between idle /
+  // sending / sent / error so the doctor sees feedback in <2s.
+  type SendState =
+    | { kind: "idle" }
+    | { kind: "sending" }
+    | { kind: "sent"; messageId: number }
+    | { kind: "error"; message: string };
+  const [followupSendState, setFollowupSendState] = useState<SendState>({ kind: "idle" });
+  const [reminderSendState, setReminderSendState] = useState<SendState>({ kind: "idle" });
+
+  const sendTelegram = async (
+    body: string,
+    setState: (s: SendState) => void,
+  ) => {
+    if (!chatId?.trim()) {
+      setState({ kind: "error", message: "Link Telegram chat ID first" });
+      return;
+    }
+    setState({ kind: "sending" });
+    try {
+      const res = await fetch("/api/consult/telegram-send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          chatId: chatId.trim(),
+          body,
+          patientId: patient.id,
+          patientName: patient.name,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: true;
+        messageId?: number;
+        error?: string;
+      };
+      if (!res.ok || !json.ok || typeof json.messageId !== "number") {
+        throw new Error(json.error ?? `send failed (${res.status})`);
+      }
+      setState({ kind: "sent", messageId: json.messageId });
+    } catch (err) {
+      setState({
+        kind: "error",
+        message: err instanceof Error ? err.message : "send failed",
+      });
+    }
+  };
+
+  const sendFollowupNow = () =>
+    sendTelegram(followupMessage.trim(), setFollowupSendState);
+
+  const sendReminderNow = () => {
+    const drug = firstRx ? `${firstRx.drug} (${firstRx.dose})` : "the prescribed medication";
+    const tList =
+      sortedTimes.length === 0
+        ? "the scheduled times"
+        : sortedTimes.length === 1
+          ? sortedTimes[0]
+          : sortedTimes.slice(0, -1).join(", ") + " and " + sortedTimes.at(-1);
+    const meal =
+      mealRelation === "before_meal"
+        ? " (give before food)"
+        : mealRelation === "after_meal"
+          ? " (give with or after food)"
+          : "";
+    const body =
+      `Reminder for ${patient.name}: time for ${drug}${meal}. ` +
+      `Daily schedule: ${tList}, through ${effectiveEnd}. ` +
+      `Reply if you have any concerns. — ${CLINIC.name}`;
+    sendTelegram(body, setReminderSendState);
+  };
 
   const applyPreset = (id: (typeof MED_PRESETS)[number]["id"]) => {
     setPresetId(id);
@@ -1014,6 +1224,14 @@ function MedicationScheduleCard({
               Sent to {patient.owner} via the linked channel.
             </div>
           </div>
+
+          <SendNowRow
+            label="Send follow-up now"
+            disabled={!chatId?.trim() || !followupMessage.trim()}
+            state={followupSendState}
+            onSend={sendFollowupNow}
+            hint={!chatId?.trim() ? "Link Telegram chat ID at the top of the consult." : undefined}
+          />
         </div>
 
         {/* RIGHT — Medication reminder schedule */}
@@ -1207,6 +1425,14 @@ function MedicationScheduleCard({
             {previewLine}
           </div>
         </div>
+
+        <SendNowRow
+          label="Send reminder now"
+          disabled={!chatId?.trim() || times.length === 0}
+          state={reminderSendState}
+          onSend={sendReminderNow}
+          hint={!chatId?.trim() ? "Link Telegram chat ID at the top of the consult." : undefined}
+        />
 
         </div>{/* /RIGHT column */}
       </div>{/* /grid */}
@@ -3146,6 +3372,8 @@ function ConsultContent() {
         </div>
         <MedicationScheduleCard
           patient={patient}
+          prescription={output?.prescription}
+          chatId={telegramChatId}
           onSubmit={(payload) => {
             console.log("[medication-schedule] payload", payload);
             flashToast(
