@@ -1900,15 +1900,25 @@ function ConsultContent() {
   // pipeline produces `summary.doctorSummary.soap`, `summary.prescription`,
   // `summary.billing`, `summary.todos` — the existing card components only
   // ever wanted these four fields.
+  // Source the output from the final result if available, otherwise from
+  // the in-flight partialSummary (populated by orchestrator_delta SSE
+  // events as Sonnet streams its tool input). This lets the SOAP / Rx /
+  // Billing / Todos cards render token-by-token during the orchestrator
+  // pass instead of waiting for the full ~18s completion.
   const output: ConsultOutput | null = useMemo(() => {
-    if (!stream.result) return null;
+    const summary = stream.result?.summary ?? stream.partialSummary ?? null;
+    if (!summary) return null;
     return {
-      soap: stream.result.summary.doctorSummary?.soap ?? { S: "", O: "", A: "", P: "" },
-      prescription: stream.result.summary.prescription ?? [],
-      billing: stream.result.summary.billing ?? [],
-      todos: stream.result.summary.todos ?? [],
+      soap: summary.doctorSummary?.soap ?? { S: "", O: "", A: "", P: "" },
+      prescription: summary.prescription ?? [],
+      billing: summary.billing ?? [],
+      todos: summary.todos ?? [],
     };
-  }, [stream.result]);
+  }, [stream.result, stream.partialSummary]);
+  // True only while the orchestrator is still streaming — used by cards
+  // to render a subtle "streaming…" pill so the doctor knows the
+  // displayed values aren't final yet.
+  const isStreaming = stream.running && !stream.result;
   const generating = stream.running;
   const billFlagged = useMemo(
     () =>
@@ -2916,6 +2926,35 @@ function ConsultContent() {
             >
               Structured output
             </h3>
+            {isStreaming && (
+              <span
+                style={{
+                  fontSize: 10.5,
+                  fontWeight: 700,
+                  letterSpacing: 1.4,
+                  textTransform: "uppercase",
+                  color: C.brand,
+                  background: C.brandLight,
+                  border: `1px solid ${C.brandBorder}`,
+                  borderRadius: 999,
+                  padding: "2px 10px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: C.brand,
+                    animation: "agentPulse 1.2s ease-in-out infinite",
+                  }}
+                />
+                Streaming
+              </span>
+            )}
             <div style={{ flex: 1 }} />
             <StatusPill state={status} />
           </div>
