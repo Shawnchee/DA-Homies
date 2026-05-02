@@ -224,12 +224,18 @@ function DiagramNode({
     active: { border: C.brandBorder, bg: C.brandLight },
     done: { border: C.greenBorder, bg: C.greenLight },
   }[tone];
+  // Use longhand for every side so we never mix `border` shorthand with
+  // `borderLeft` longhand on rerender — React warns when a shorthand
+  // property is set alongside a conflicting longhand because the resolution
+  // order isn't deterministic across renders.
   return (
     <div
       style={{
         width,
         background: colors.bg,
-        border: `1px solid ${colors.border}`,
+        borderTop: `1px solid ${colors.border}`,
+        borderRight: `1px solid ${colors.border}`,
+        borderBottom: `1px solid ${colors.border}`,
         borderLeft: accent ? `3px solid ${C.text}` : `1px solid ${colors.border}`,
         borderRadius: 10,
         padding: "12px 14px",
