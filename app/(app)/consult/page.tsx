@@ -20,6 +20,7 @@ import { C, FONT_MONO, FONT_SERIF, SHADOW_CARD } from "@/lib/tokens";
 import type {
   BillingItem,
   ConsultOutput,
+  Patient,
   PrescriptionItem,
   SoapNote,
   TodoItem,
@@ -143,7 +144,9 @@ function OutputCardShell({
 // ─────────────────────────────────────────────────────────────────────
 // SOAP
 // ─────────────────────────────────────────────────────────────────────
-function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
+function SoapCard({ s, onEdit }: { s: SoapNote; onEdit: (s: SoapNote) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(s);
   const rows: { k: "S" | "O" | "A" | "P"; v: string }[] = [
     { k: "S", v: s.S },
     { k: "O", v: s.O },
@@ -158,16 +161,30 @@ function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
       footer={
         <>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
-          </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
-          </Button>
+          {editing ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => { setDraft(s); setEditing(false); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={() => { onEdit(draft); setEditing(false); }}>Save Edit</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" icon={Icon.edit(13)} onClick={() => setEditing(true)}>Edit</Button>
+            </>
+          )}
         </>
       }
     >
-      {rows.map((r, i) => (
+      {editing ? (
+        <div style={{ display: "grid", gap: 14, padding: "10px 0" }}>
+          {(["S", "O", "A", "P"] as const).map(k => (
+            <div key={k} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 14 }}>
+              <span style={{ fontFamily: FONT_MONO, fontSize: 11, fontWeight: 700, color: C.muted, display: "inline-grid", placeItems: "center", width: 24, height: 22, border: `1px solid ${C.border}`, borderRadius: 4 }}>{k}</span>
+              <textarea value={draft[k]} onChange={e => setDraft(d => ({ ...d, [k]: e.target.value }))} style={{ width: "100%", padding: "8px 12px", border: `1px solid ${C.border}`, borderRadius: 6, fontSize: 14, fontFamily: "inherit", minHeight: 60 }} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        rows.map((r, i) => (
         <div
           key={r.k}
           style={{
@@ -205,7 +222,7 @@ function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
             />
           </div>
         </div>
-      ))}
+      )))}
     </OutputCardShell>
   );
 }
@@ -215,11 +232,14 @@ function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
 // ─────────────────────────────────────────────────────────────────────
 function PrescriptionCard({
   rx,
-  onApprove,
+  onEdit,
 }: {
   rx: PrescriptionItem[];
-  onApprove: () => void;
+  onEdit: (rx: PrescriptionItem[]) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(rx);
+
   return (
     <OutputCardShell
       title="Prescription"
@@ -228,16 +248,37 @@ function PrescriptionCard({
       footer={
         <>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
-          </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
-          </Button>
+          {editing ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => { setDraft(rx); setEditing(false); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={() => { onEdit(draft); setEditing(false); }}>Save Edit</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" icon={Icon.edit(13)} onClick={() => setEditing(true)}>Edit / Add</Button>
+            </>
+          )}
         </>
       }
     >
-      {rx.map((r, i) => (
+      {editing ? (
+        <div style={{ display: "grid", gap: 14, padding: "10px 0" }}>
+          {draft.map((r, i) => (
+            <div key={i} style={{ display: "grid", gap: 8, paddingBottom: 10, borderBottom: i < draft.length - 1 ? `1px solid ${C.borderSoft}` : "none" }}>
+              <input value={r.drug} onChange={e => { const n = [...draft]; n[i].drug = e.target.value; setDraft(n); }} placeholder="Drug name" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 13, fontFamily: "inherit" }} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
+                <input value={r.dose} onChange={e => { const n = [...draft]; n[i].dose = e.target.value; setDraft(n); }} placeholder="Dose" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+                <input value={r.dur} onChange={e => { const n = [...draft]; n[i].dur = e.target.value; setDraft(n); }} placeholder="Duration" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+                <input value={r.qty} onChange={e => { const n = [...draft]; n[i].qty = e.target.value; setDraft(n); }} placeholder="Qty" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 12, fontFamily: "inherit" }} />
+              </div>
+            </div>
+          ))}
+          <Button variant="ghost" size="sm" onClick={() => setDraft([...draft, { drug: "", dose: "", dur: "", qty: "" }])}>
+            + Add drug
+          </Button>
+        </div>
+      ) : (
+        rx.map((r, i) => (
         <div
           key={i}
           style={{
@@ -295,7 +336,7 @@ function PrescriptionCard({
             ))}
           </div>
         </div>
-      ))}
+      )))}
     </OutputCardShell>
   );
 }
@@ -305,133 +346,120 @@ function PrescriptionCard({
 // ─────────────────────────────────────────────────────────────────────
 function BillingCard({
   items,
-  total,
-  flagged,
-  onApprove,
+  onEdit,
 }: {
   items: BillingItem[];
-  total: number;
-  flagged: number;
-  onApprove: () => void;
+  onEdit: (items: BillingItem[]) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(items);
+
+  useEffect(() => setDraft(items), [items]);
+
+  const selectedCount = items.filter(i => i.selected === true).length;
+
   return (
     <OutputCardShell
-      title="Billing recovery"
-      meta={`${items.length} items`}
+      title="Procedures / Medications"
+      meta={`${selectedCount} checked`}
       delay={180}
       footer={
         <>
-          <div
-            style={{
-              fontFamily: FONT_SERIF,
-              fontSize: 18,
-              fontWeight: 600,
-              color: C.text,
-              letterSpacing: -0.2,
-            }}
-          >
-            Total{" "}
-            <span style={{ fontFamily: FONT_MONO, fontSize: 15 }}>
-              RM {total}
-            </span>
-          </div>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
-          </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
-          </Button>
+          {editing ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => { setDraft(items); setEditing(false); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={() => { onEdit(draft); setEditing(false); }}>Save Edit</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" icon={Icon.edit(13)} onClick={() => setEditing(true)}>Edit / Add</Button>
+            </>
+          )}
         </>
       }
     >
-      {items.map((it, i) => (
-        <div
-          key={i}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "18px 1fr auto",
-            gap: 12,
-            alignItems: "start",
-            padding: "10px 12px",
-            marginLeft: -8,
-            marginRight: -8,
-            marginBottom: 2,
-            borderRadius: 8,
-            borderLeft: it.flagged
-              ? `2px solid ${C.amber}`
-              : `2px solid transparent`,
-            background: "transparent",
-          }}
-        >
-          <span
-            style={{
-              color: it.flagged ? C.amber : C.green,
-              display: "inline-flex",
-              marginTop: 2,
-            }}
-          >
-            {it.flagged ? Icon.warn(14) : Icon.check(14)}
-          </span>
-          <div style={{ minWidth: 0 }}>
+      {editing ? (
+        <div style={{ display: "grid", gap: 10, padding: "10px 0" }}>
+          {draft.map((it, i) => (
+            <div key={i} style={{ display: "flex", gap: 10 }}>
+              <input value={it.item} onChange={e => { const n = [...draft]; n[i].item = e.target.value; setDraft(n); }} placeholder="Item name" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 13, fontFamily: "inherit" }} />
+            </div>
+          ))}
+          <Button variant="ghost" size="sm" onClick={() => setDraft([...draft, { item: "", price: 0, flagged: false, note: "", selected: true }])}>
+            + Add item
+          </Button>
+        </div>
+      ) : (
+        items.map((it, i) => {
+          const isSelected = it.selected === true;
+          return (
             <div
+              key={i}
+              onClick={() => {
+                 const n = [...items];
+                 n[i] = { ...n[i], selected: !isSelected };
+                 onEdit(n);
+              }}
               style={{
-                fontSize: 13.5,
-                color: C.text,
-                fontWeight: it.flagged ? 600 : 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "10px 0",
+                cursor: "pointer",
+                borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none",
               }}
             >
-              {it.item}
-            </div>
-            {it.flagged && (
               <div
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  marginTop: 5,
-                  padding: "2px 8px",
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  letterSpacing: 0.3,
-                  color: C.amber,
-                  border: `1px solid ${C.amberBorder}`,
-                  borderRadius: 999,
-                  background: "transparent",
+                  width: 18,
+                  height: 18,
+                  borderRadius: 4,
+                  border: `1.5px solid ${isSelected ? C.green : C.border}`,
+                  background: isSelected ? C.green : "transparent",
+                  color: "#fff",
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
+                  transition: "all 140ms ease",
                 }}
               >
-                {Icon.warn(10)} In notes, not yet billed
+                {isSelected && Icon.check(11)}
               </div>
-            )}
-          </div>
-          <div
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 13,
-              fontWeight: 600,
-              color: C.text,
-              whiteSpace: "nowrap",
-            }}
-          >
-            RM {it.price}
-          </div>
-        </div>
-      ))}
-      <div
-        style={{
-          marginTop: 14,
-          paddingTop: 12,
-          borderTop: `1px solid ${C.borderSoft}`,
-          fontSize: 11,
-          color: C.hint,
-          lineHeight: 1.5,
-          fontStyle: "italic",
-        }}
-      >
-        Impact: 10% billing recovery × 400 consults/month × RM 250 avg = RM
-        10,000/month recovered.
-      </div>
-      <div style={{ display: "none" }}>{flagged}</div>
+              <div
+                style={{
+                  flex: 1,
+                  fontSize: 13.5,
+                  color: isSelected ? C.text : C.muted,
+                  textDecoration: "none",
+                  lineHeight: 1.4,
+                }}
+              >
+                {it.item}
+              </div>
+              {it.flagged && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "2px 8px",
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                    color: C.amber,
+                    border: `1px solid ${C.amberBorder}`,
+                    borderRadius: 999,
+                    background: "transparent",
+                  }}
+                >
+                  {Icon.warn(10)} In notes
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
     </OutputCardShell>
   );
 }
@@ -439,8 +467,11 @@ function BillingCard({
 // ─────────────────────────────────────────────────────────────────────
 // Todos
 // ─────────────────────────────────────────────────────────────────────
-function TodoCard({ todos, onApprove }: { todos: TodoItem[]; onApprove: () => void }) {
+function TodoCard({ todos, onEdit }: { todos: TodoItem[]; onEdit: (todos: TodoItem[]) => void; }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(todos);
+
   const assigneeTone = (who: string): "green" | "amber" | "neutral" => {
     const w = who.toLowerCase();
     if (w.includes("vet") || w.includes("doctor")) return "green";
@@ -455,13 +486,33 @@ function TodoCard({ todos, onApprove }: { todos: TodoItem[]; onApprove: () => vo
       footer={
         <>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
-          </Button>
+          {editing ? (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => { setDraft(todos); setEditing(false); }}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={() => { onEdit(draft); setEditing(false); }}>Save Edit</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" size="sm" icon={Icon.edit(13)} onClick={() => setEditing(true)}>Edit / Add</Button>
+            </>
+          )}
         </>
       }
     >
-      {todos.map((t, i) => (
+      {editing ? (
+        <div style={{ display: "grid", gap: 10, padding: "10px 0" }}>
+          {draft.map((t, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 100px", gap: 10 }}>
+              <input value={t.task} onChange={e => { const n = [...draft]; n[i].task = e.target.value; setDraft(n); }} placeholder="Task description" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 13, fontFamily: "inherit" }} />
+              <input value={t.who} onChange={e => { const n = [...draft]; n[i].who = e.target.value; setDraft(n); }} placeholder="Assignee" style={{ width: "100%", padding: "6px 10px", border: `1px solid ${C.border}`, borderRadius: 4, fontSize: 13, fontFamily: "inherit" }} />
+            </div>
+          ))}
+          <Button variant="ghost" size="sm" onClick={() => setDraft([...draft, { task: "", who: "" }])}>
+            + Add task
+          </Button>
+        </div>
+      ) : (
+        todos.map((t, i) => (
         <div
           key={i}
           onClick={() => setDone((d) => ({ ...d, [i]: !d[i] }))}
@@ -505,7 +556,7 @@ function TodoCard({ todos, onApprove }: { todos: TodoItem[]; onApprove: () => vo
             {t.who}
           </Pill>
         </div>
-      ))}
+      )))}
     </OutputCardShell>
   );
 }
@@ -687,6 +738,411 @@ function ExampleDropdown({ onPick }: { onPick: (text: string, label: string) => 
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Medication schedule
+// ─────────────────────────────────────────────────────────────────────
+type MedFrequency =
+  | "once_daily"
+  | "twice_daily"
+  | "every_x_hours"
+  | "weekly"
+  | "custom";
+
+type MedSchedulePayload = {
+  pet_id: string;
+  owner_id: string;
+  frequency: MedFrequency;
+  interval_hours?: number;
+  days_of_week?: number[];
+  times: string[];
+  start_date: string;
+  end_date: string;
+  meal_relation: "before_meal" | "after_meal" | "none";
+  notes: string;
+};
+
+const MED_PRESETS: {
+  id: "once_daily" | "twice_daily" | "every_8h" | "weekly" | "custom";
+  label: string;
+  hint: string;
+}[] = [
+  { id: "once_daily",  label: "Once daily",    hint: "1× / day"   },
+  { id: "twice_daily", label: "Twice daily",   hint: "2× / day"   },
+  { id: "every_8h",   label: "Every 8 hours", hint: "3× / day"   },
+  { id: "weekly",     label: "Once weekly",   hint: "1× / week"  },
+  { id: "custom",     label: "Custom",        hint: "fully manual" },
+];
+
+const MED_DURATION_DAYS = [3, 5, 7, 14];
+const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDaysIso(base: string, days: number): string {
+  const d = new Date(`${base}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function ChipBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: "6px 12px",
+        borderRadius: 999,
+        border: `1px solid ${active ? C.text : C.border}`,
+        background: active ? C.text : "transparent",
+        color: active ? "#fff" : C.text,
+        fontSize: 12.5,
+        fontWeight: 600,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        transition: "background 130ms ease, border-color 130ms ease",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MedicationScheduleCard({
+  patient,
+  onSubmit,
+}: {
+  patient: Patient;
+  onSubmit: (payload: MedSchedulePayload) => void;
+}) {
+  const [presetId, setPresetId] =
+    useState<(typeof MED_PRESETS)[number]["id"]>("once_daily");
+  const [startDate, setStartDate] = useState<string>(todayIso());
+  const [durKind, setDurKind] = useState<"days" | "custom">("days");
+  const [durDays, setDurDays] = useState<number>(7);
+  const [endDate, setEndDate] = useState<string>(addDaysIso(todayIso(), 6));
+  const [times, setTimes] = useState<string[]>(["08:00"]);
+  const [intervalHours, setIntervalHours] = useState<number>(8);
+  const [daysOfWeek, setDaysOfWeek] = useState<number[]>([1]);
+  const [mealRelation, setMealRelation] =
+    useState<MedSchedulePayload["meal_relation"]>("none");
+  const [notes, setNotes] = useState("");
+
+  const applyPreset = (id: (typeof MED_PRESETS)[number]["id"]) => {
+    setPresetId(id);
+    if (id === "once_daily")  setTimes(["08:00"]);
+    if (id === "twice_daily") setTimes(["08:00", "20:00"]);
+    if (id === "every_8h")  { setTimes(["00:00", "08:00", "16:00"]); setIntervalHours(8); }
+    if (id === "weekly")    { setTimes(["09:00"]); if (daysOfWeek.length === 0) setDaysOfWeek([1]); }
+  };
+
+  const effectiveEnd = useMemo(() => {
+    if (durKind === "custom") return endDate;
+    return addDaysIso(startDate, Math.max(0, durDays - 1));
+  }, [durKind, durDays, startDate, endDate]);
+
+  const errors = useMemo(() => {
+    const e: string[] = [];
+    if (times.length === 0) e.push("Add at least one time slot.");
+    if (times.some((t) => !/^\d{2}:\d{2}$/.test(t))) e.push("Times must be in HH:MM format.");
+    if ((presetId === "every_8h" || presetId === "custom") && (intervalHours <= 0 || intervalHours > 24))
+      e.push("Interval hours must be between 1 and 24.");
+    if (presetId === "weekly" && daysOfWeek.length === 0) e.push("Pick at least one weekday.");
+    if (!startDate) e.push("Start date required.");
+    if (effectiveEnd && effectiveEnd < startDate) e.push("End date cannot be before start date.");
+    if (durKind === "custom" && !endDate) e.push("Custom end date required.");
+    if (new Set(times).size !== times.length) e.push("Duplicate time slots.");
+    return e;
+  }, [times, presetId, intervalHours, daysOfWeek, startDate, effectiveEnd, durKind, endDate]);
+
+  const valid = errors.length === 0;
+  const sortedTimes = useMemo(() => [...times].sort(), [times]);
+
+  const previewLine = useMemo(() => {
+    const list =
+      sortedTimes.length === 0 ? "(no times set)" :
+      sortedTimes.length === 1 ? sortedTimes[0] :
+      sortedTimes.slice(0, -1).join(", ") + " and " + sortedTimes.at(-1);
+    const dowText = presetId === "weekly"
+      ? ` on ${[...daysOfWeek].sort().map((d) => DOW_LABELS[d]).join(", ") || "—"}`
+      : "";
+    const meal =
+      mealRelation === "before_meal" ? " (before meal)" :
+      mealRelation === "after_meal"  ? " (after meal)"  : "";
+    return `Reminders will be sent at ${list}${dowText} from ${startDate || "—"} to ${effectiveEnd || "—"}${meal}.`;
+  }, [sortedTimes, daysOfWeek, presetId, mealRelation, startDate, effectiveEnd]);
+
+  const reminderCount = useMemo(() => {
+    if (!startDate || !effectiveEnd || times.length === 0) return 0;
+    const a = new Date(`${startDate}T00:00:00`);
+    const b = new Date(`${effectiveEnd}T00:00:00`);
+    if (b < a) return 0;
+    const totalDays = Math.floor((b.getTime() - a.getTime()) / 86_400_000) + 1;
+    if (presetId === "weekly") {
+      let count = 0;
+      for (let i = 0; i < totalDays; i++) {
+        const day = new Date(a); day.setDate(a.getDate() + i);
+        if (daysOfWeek.includes(day.getDay())) count += times.length;
+      }
+      return count;
+    }
+    return totalDays * times.length;
+  }, [startDate, effectiveEnd, times, presetId, daysOfWeek]);
+
+  const updateTime = (i: number, v: string) =>
+    setTimes((p) => p.map((t, idx) => (idx === i ? v : t)));
+  const removeTime = (i: number) =>
+    setTimes((p) => p.filter((_, idx) => idx !== i));
+  const addTime    = () => setTimes((p) => [...p, "12:00"]);
+  const toggleDow  = (d: number) =>
+    setDaysOfWeek((p) => p.includes(d) ? p.filter((x) => x !== d) : [...p, d]);
+
+  const handleSubmit = () => {
+    if (!valid) return;
+    const payload: MedSchedulePayload = {
+      pet_id:   patient.id,
+      owner_id: patient.owner,
+      frequency: presetId === "every_8h" ? "every_x_hours" : (presetId as MedFrequency),
+      ...(presetId === "every_8h" || presetId === "custom" ? { interval_hours: intervalHours } : {}),
+      ...(presetId === "weekly"   || presetId === "custom" ? { days_of_week: [...daysOfWeek].sort() } : {}),
+      times: sortedTimes,
+      start_date:    startDate,
+      end_date:      effectiveEnd,
+      meal_relation: mealRelation,
+      notes:         notes.trim(),
+    };
+    onSubmit(payload);
+  };
+
+  const lbl: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: 1.3,
+    textTransform: "uppercase", color: C.hint, marginBottom: 8,
+  };
+
+  const inp: React.CSSProperties = {
+    border: `1px solid ${C.border}`, borderRadius: 8,
+    padding: "8px 10px", background: C.card, color: C.text,
+    fontFamily: "inherit", fontSize: 13, outline: "none",
+  };
+
+  return (
+    <OutputCardShell
+      title="Medication schedule"
+      meta={reminderCount > 0 ? `${reminderCount} reminder${reminderCount === 1 ? "" : "s"}` : "Not scheduled"}
+      footer={
+        <>
+          <div style={{ flex: 1, fontSize: 11.5, color: C.muted }}>
+            {valid ? "Ready to schedule." : `${errors.length} issue${errors.length === 1 ? "" : "s"} to resolve`}
+          </div>
+          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={handleSubmit} disabled={!valid}>
+            Save schedule
+          </Button>
+        </>
+      }
+    >
+      <div style={{ display: "grid", gap: 20 }}>
+
+        {/* A — Quick preset */}
+        <div>
+          <div style={lbl}>Quick preset</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {MED_PRESETS.map((p) => (
+              <ChipBtn key={p.id} active={presetId === p.id} onClick={() => applyPreset(p.id)}>
+                {p.label}
+                <span style={{ marginLeft: 6, fontSize: 10.5, opacity: 0.65, fontWeight: 500 }}>
+                  {p.hint}
+                </span>
+              </ChipBtn>
+            ))}
+          </div>
+        </div>
+
+        {/* B — Configuration */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+
+          {/* Left: start + duration */}
+          <div style={{ display: "grid", gap: 16 }}>
+            <div>
+              <div style={lbl}>Start date</div>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                style={{ ...inp, width: "100%" }}
+              />
+            </div>
+            <div>
+              <div style={lbl}>Duration</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                {MED_DURATION_DAYS.map((d) => (
+                  <ChipBtn
+                    key={d}
+                    active={durKind === "days" && durDays === d}
+                    onClick={() => { setDurKind("days"); setDurDays(d); }}
+                  >
+                    {d} days
+                  </ChipBtn>
+                ))}
+                <ChipBtn active={durKind === "custom"} onClick={() => setDurKind("custom")}>
+                  Custom
+                </ChipBtn>
+              </div>
+              {durKind === "custom" && (
+                <input
+                  type="date"
+                  value={endDate}
+                  min={startDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  style={{ ...inp, width: "100%" }}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* Right: times + frequency extras */}
+          <div style={{ display: "grid", gap: 16 }}>
+            <div>
+              <div style={{ ...lbl, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>Times</span>
+                <button
+                  type="button"
+                  onClick={addTime}
+                  style={{
+                    background: "transparent", border: "none",
+                    color: C.text, fontSize: 11, fontWeight: 700,
+                    letterSpacing: 1.1, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  + Add time
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 6 }}>
+                {times.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: C.muted }}>No times added yet.</div>
+                )}
+                {times.map((t, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="time"
+                      value={t}
+                      onChange={(e) => updateTime(i, e.target.value)}
+                      style={{ ...inp, fontFamily: FONT_MONO }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeTime(i)}
+                      style={{
+                        background: "transparent", border: `1px solid ${C.border}`,
+                        borderRadius: 6, padding: "6px 10px",
+                        fontSize: 12, color: C.muted, cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {(presetId === "every_8h" || presetId === "custom") && (
+              <div>
+                <div style={lbl}>Every X hours</div>
+                <input
+                  type="number"
+                  min={1}
+                  max={24}
+                  value={intervalHours}
+                  onChange={(e) => setIntervalHours(Number(e.target.value) || 0)}
+                  style={{ ...inp, width: 110 }}
+                />
+              </div>
+            )}
+
+            {(presetId === "weekly" || presetId === "custom") && (
+              <div>
+                <div style={lbl}>Weekdays</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {DOW_LABELS.map((label, idx) => (
+                    <ChipBtn key={label} active={daysOfWeek.includes(idx)} onClick={() => toggleDow(idx)}>
+                      {label}
+                    </ChipBtn>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Meal relation */}
+        <div>
+          <div style={lbl}>Meal relation</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {([ { id: "before_meal", label: "Before meal" }, { id: "after_meal", label: "After meal" }, { id: "none", label: "No preference" } ] as const).map((m) => (
+              <ChipBtn key={m.id} active={mealRelation === m.id} onClick={() => setMealRelation(m.id)}>
+                {m.label}
+              </ChipBtn>
+            ))}
+          </div>
+        </div>
+
+        {/* Notes — left column */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+          <div>
+            <div style={lbl}>Notes (not used for automation)</div>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="e.g. Give with small treat to ease swallowing."
+              style={{ ...inp, width: "100%", resize: "vertical", minHeight: 64, fontFamily: "inherit" }}
+            />
+            <div style={{ fontSize: 11, color: C.hint, marginTop: 5 }}>Owner: {patient.owner}</div>
+          </div>
+        </div>
+
+        {/* C — Live preview */}
+        <div style={{ borderTop: `1px solid ${C.borderSoft}`, paddingTop: 14 }}>
+          <div style={lbl}>Live preview</div>
+          <div
+            style={{
+              fontSize: 13.5, color: C.text, lineHeight: 1.55,
+              padding: "12px 14px", background: C.bgAlt,
+              border: `1px solid ${C.borderSoft}`, borderRadius: 8,
+            }}
+          >
+            {previewLine}
+          </div>
+        </div>
+
+        {/* D — Validation errors */}
+        {errors.length > 0 && (
+          <div
+            style={{
+              borderRadius: 8, border: `1px solid ${C.amberBorder}`,
+              padding: "10px 12px", fontSize: 12.5, color: C.amber,
+              display: "grid", gap: 4,
+            }}
+          >
+            {errors.map((e, i) => <div key={i}>· {e}</div>)}
+          </div>
+        )}
+
+      </div>
+    </OutputCardShell>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────
 function ConsultContent() {
@@ -761,15 +1217,17 @@ function ConsultContent() {
   // pipeline produces `summary.doctorSummary.soap`, `summary.prescription`,
   // `summary.billing`, `summary.todos` — the existing card components only
   // ever wanted these four fields.
+  const [overrides, setOverrides] = useState<Partial<ConsultOutput>>({});
   const output: ConsultOutput | null = useMemo(() => {
     if (!stream.result) return null;
     return {
-      soap: stream.result.summary.doctorSummary.soap,
-      prescription: stream.result.summary.prescription,
-      billing: stream.result.summary.billing,
-      todos: stream.result.summary.todos,
+      soap: overrides.soap || stream.result.summary.doctorSummary.soap,
+      prescription: overrides.prescription || stream.result.summary.prescription,
+      billing: overrides.billing || stream.result.summary.billing,
+      todos: overrides.todos || stream.result.summary.todos,
     };
-  }, [stream.result]);
+  }, [stream.result, overrides]);
+
   const generating = stream.running;
   const billTotal = useMemo(
     () => (output ? output.billing.reduce((a, b) => a + b.price, 0) : 0),
@@ -1478,7 +1936,7 @@ function ConsultContent() {
                       rawNotes: notes,
                       soap: output.soap,
                       prescription: output.prescription,
-                      billing: output.billing,
+                      billing: output.billing.filter((b) => b.selected === true),
                       todos: output.todos,
                     });
                     setSavedVisitId(visit.id);
@@ -1620,63 +2078,65 @@ function ConsultContent() {
             <div style={{ display: "grid", gap: 14 }}>
               <SoapCard
                 s={output.soap}
-                onApprove={() => flashToast("SOAP note approved")}
+                onEdit={(newSoap) => {
+                  setOverrides(o => ({ ...o, soap: newSoap }));
+                  flashToast("SOAP note edit saved");
+                }}
               />
               <PrescriptionCard
                 rx={output.prescription}
-                onApprove={() =>
-                  flashToast("Prescription approved · queued for dispensing")
-                }
+                onEdit={(newRx) => {
+                  setOverrides(o => ({ ...o, prescription: newRx }));
+                  flashToast("Prescription edit saved");
+                }}
               />
-
-              {/* Recoverable callout — thin amber border, no wash */}
-              {billFlagged > 0 && (
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "8px 14px",
-                    borderRadius: 999,
-                    border: `1px solid ${C.amberBorder}`,
-                    background: "transparent",
-                    color: C.amber,
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    alignSelf: "flex-start",
-                    width: "fit-content",
-                    animation: "slideIn 380ms ease both",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: C.amber,
-                      display: "inline-block",
-                    }}
-                  />
-                  <span style={{ fontFamily: FONT_MONO }}>RM {billFlagged}</span>{" "}
-                  recoverable — 2 items flagged in notes, not yet billed
-                </div>
-              )}
 
               <BillingCard
                 items={output.billing}
-                total={billTotal}
-                flagged={billFlagged}
-                onApprove={() =>
-                  flashToast(`Billing approved · RM ${billFlagged} recovered`)
-                }
+                onEdit={(newBilling) => {
+                  setOverrides(o => ({ ...o, billing: newBilling }));
+                  flashToast("Checklist edit saved");
+                }}
               />
               <TodoCard
                 todos={output.todos}
-                onApprove={() => flashToast("Staff to-dos dispatched")}
+                onEdit={(newTodos) => {
+                  setOverrides(o => ({ ...o, todos: newTodos }));
+                  flashToast("Todos edit saved");
+                }}
               />
             </div>
           )}
         </div>
+      </div>
+
+      {/* Medication schedule — always visible; vet builds the reminder
+          schedule here after reviewing the prescription. */}
+      <div style={{ marginTop: 36 }}>
+        <h3
+          style={{
+            fontFamily: FONT_SERIF,
+            fontSize: 18,
+            fontWeight: 600,
+            letterSpacing: -0.3,
+            margin: "0 0 4px",
+            color: C.text,
+          }}
+        >
+          Medication schedule
+        </h3>
+        <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
+          Build a reminder schedule for the owner.
+        </div>
+        <MedicationScheduleCard
+          patient={patient}
+          onSubmit={(payload) => {
+            console.log("[medication-schedule] payload", payload);
+            flashToast(
+              `Schedule saved · ${payload.times.length} time${payload.times.length === 1 ? "" : "s"} · ${payload.start_date} → ${payload.end_date}`,
+            );
+          }}
+        />
       </div>
 
       {/* Owner Telegram delivery — appears after the orchestrator emits
