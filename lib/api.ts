@@ -27,6 +27,16 @@ export const api = {
     postJSON<CreatePatientRequest, CreatePatientResponse>("/api/patients", req),
   getPatient: (id: string) =>
     getJSON<GetPatientResponse>(`/api/patients?id=${encodeURIComponent(id)}`),
+  deletePatient: async (id: string) => {
+    const resp = await fetch(`/api/patients?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+    if (!resp.ok) {
+      const error = await resp.text();
+      throw new Error(error || `delete failed (${resp.status})`);
+    }
+    return resp.json() as Promise<{ ok: true; id: string }>;
+  },
   getBrief: (patientId: string) =>
     getJSON<GetBriefResponse>(
       `/api/brief?patient_id=${encodeURIComponent(patientId)}`,

@@ -54,6 +54,13 @@ interface StoreCtx {
   dismissNewPatientArrival: () => void;
 
   /**
+   * Remove a patient from the schedule. Optimistically removes from
+   * local state, then DELETEs from Supabase. On failure, refreshes
+   * to restore correct state and surfaces an error toast.
+   */
+  deletePatient: (id: string) => Promise<void>;
+
+  /**
    * Build a passport from the orchestrator output, persist it, and ping
    * the owner on Telegram with the public passport URL appended to the
    * draft body. Returns the absolute passport URL on success so the
@@ -222,6 +229,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToast(null), 3400);
   }, []);
 
+  const deletePatient = useCallback(
+    async (id: string) => {
+      const prev = patients;
+      const removed = prev.find((p) => p.id === id);
+      // Optimistic remove — keeps the demo snappy. Roll back on failure.
+      setPatients((ps) => ps.filter((p) => p.id !== id));
+      try {
+        await api.deletePatient(id);
+        flashToast(
+          removed ? `Removed ${removed.name} from schedule` : "Patient removed",
+        );
+      } catch (err) {
+        setPatients(prev);
+        flashToast(
+          `Failed to remove patient: ${err instanceof Error ? err.message : "unknown error"}`,
+        );
+      }
+    },
+    [patients, flashToast],
+  );
+
   const openEscalation = useCallback((f: FollowUp) => {
     setApproveError(null);
     setEscalation(f);
@@ -352,6 +380,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         closeConsultAndGeneratePassport,
         newPatientArrival,
         dismissNewPatientArrival,
+        deletePatient,
       }}
     >
       {children}

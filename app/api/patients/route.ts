@@ -97,3 +97,30 @@ export async function POST(req: Request) {
     return errorResponse(err);
   }
 }
+
+/**
+ * DELETE /api/patients?id=<uuid>
+ *
+ * Removes a patient row. Cascades through visits, followups, and the
+ * passport row (per FK constraints in 0001_init.sql + 0006_passports.sql).
+ * Used by the doctor's dashboard to clean up demo / test patients.
+ */
+export async function DELETE(req: Request) {
+  try {
+    const id = new URL(req.url).searchParams.get("id");
+    if (!id) throw new ApiError(400, "id required");
+
+    if (!hasSupabase()) {
+      throw new ApiError(
+        503,
+        "Supabase connection is required to delete patients.",
+      );
+    }
+    const db = getSupabaseServer();
+    const { error } = await db.from("patients").delete().eq("id", id);
+    if (error) throw new ApiError(500, error.message);
+    return json({ ok: true, id });
+  } catch (err) {
+    return errorResponse(err);
+  }
+}
