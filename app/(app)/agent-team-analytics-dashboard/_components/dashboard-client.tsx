@@ -63,6 +63,20 @@ const DEMO_FIXTURES: { id: string; label: string; notes: string; transcript: str
     transcript:
       "Owner: He's doing the icing twice a day like you said. Sleeping on his side, only stands when I take him out. The cone is annoying him but it's staying on.",
   },
+  {
+    // Designed to actually trigger Tavily on the prescription agent.
+    // Librela (bedinvetmab) is a newish mAb for canine OA — NOT in the
+    // BILLING_MATRIX, raises species-safety + recall questions the
+    // prescription-agent prompt explicitly considers Tavily-worthy.
+    // Use this fixture in the demo to prove the live web-search lights
+    // up for non-routine cases.
+    id: "p1",
+    label: "Milo — Librela request (Tavily demo)",
+    notes:
+      "Owner asking about switching Milo from chronic NSAIDs to Librela 10 mg/kg SC monthly for OA flare-ups. He's on long-term Meloxicam — discussed transition + injection schedule. Confirm current safety profile and any active recalls before next visit.",
+    transcript:
+      "Owner: My friend's vet started her dog on Librela and she's doing way better than on the daily pill. Is it safe for Milo to switch? I read something online about side effects.",
+  },
 ];
 
 export default function AgentDashboardClient() {
