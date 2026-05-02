@@ -19,7 +19,7 @@ All five required submission artifacts are checked into this repository for easy
 |---|---|---|---|
 | 1 | 💾 **Code Repository** | <https://github.com/Shawnchee/DA-Homies> | Full source — Next.js 16 + Claude (Haiku 4.5 / Sonnet 4.6) + Supabase + grammY Telegram bot. Live build at <https://consilium-tau.vercel.app>. |
 | 2 | 🧪 **Refined QA Testing Document** | [`Refined QATD.pdf`](./Refined%20QATD.pdf) — source: [`refined_qa.md`](./refined_qa.md) | Updated test strategy, expanded test matrix, coverage, defect tracking and regression plan for the final round. |
-| 3 | 🚀 **Deployment Plan** | [`Deployment Plan.pdf`](./Deployment%20Plan.pdf) — source: [`cicd.md`](./cicd.md) | Environments, CI/CD pipeline, secret management, rollback strategy, observability, on-call runbooks. |
+| 3 | 🚀 **Deployment Plan** | [`Deployment Plan.pdf`](./Deployment%20Plan.pdf) — source: [`cicd.md`](./cicd.md) | Architecture, environments, CI/CD (Vercel + GitHub Actions AI-eval + Supabase migrations + clinic-brain-sync cron), secret management, step-by-step deploy, monitoring, rollback, risks. |
 | 4 | 📈 **Business Proposal** | [`Business Proposal.pdf`](./Business%20Proposal.pdf) — source: [`business_proposal.md`](./business_proposal.md) | Market sizing, pricing tiers, go-to-market motion, unit economics, and financial model for the developed product. |
 | 5 | 🎤 **Final Round Pitch Deck** | [`Consilium Pitch Deck.pdf`](./Consilium%20Pitch%20Deck.pdf) | Final-round presentation slides covering problem, solution, decision layer, demo highlights, traction, and ask. |
 
