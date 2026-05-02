@@ -40,6 +40,15 @@ interface StoreCtx {
   setExpandedPatient: (id: string | null) => void;
 
   /**
+   * Last patient INSERTed via Supabase Realtime — the doctor side
+   * renders a clickable arrival banner from this so a freshly
+   * registered intake doesn't require a manual refresh. Cleared
+   * by the banner's dismiss button or after auto-timeout.
+   */
+  newPatientArrival: { id: string; name: string; arrivedAt: number } | null;
+  dismissNewPatientArrival: () => void;
+
+  /**
    * Build a passport from the orchestrator output, persist it, and ping
    * the owner on Telegram with the public passport URL appended to the
    * draft body. Returns the absolute passport URL on success so the
@@ -60,6 +69,12 @@ type FollowupRowPayload = {
   owner_message?: string | null;
 };
 
+/** Minimum shape we read off a Realtime `patients` INSERT payload. */
+type PatientRowPayload = {
+  id: string;
+  name?: string | null;
+};
+
 const Ctx = createContext<StoreCtx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -75,6 +90,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [approving, setApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
   const [expandedPatient, setExpandedPatient] = useState<string | null>(null);
+  const [newPatientArrival, setNewPatientArrival] = useState<
+    StoreCtx["newPatientArrival"]
+  >(null);
+  const dismissNewPatientArrival = useCallback(
+    () => setNewPatientArrival(null),
+    [],
+  );
 
   // `silent` skips the loading skeleton flash — used for Realtime-triggered
   // refreshes where a full skeleton wipe would be jarring.
@@ -151,6 +173,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       )
       .subscribe();
 
+    return () => {
+      void sb.removeChannel(channel);
+    };
+  }, [loadFollowups]);
+
+  /* ─── Supabase Realtime on `patients` INSERTs ─────────────────────────
+     Fires when a receptionist registers a new patient via /receptionist.
+     We refresh the patient list silently and surface a clickable arrival
+     banner so the doctor doesn't need to hunt for the new row.
+  ─────────────────────────────────────────────────────────────────────── */
+  const seenArrivalIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!hasSupabase()) return;
+    const sb = getSupabaseBrowser();
+    const channel = sb
+      .channel("patients-live")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "patients" },
+        (payload) => {
+          const row = payload.new as PatientRowPayload;
+          if (!row?.id || seenArrivalIds.current.has(row.id)) return;
+          seenArrivalIds.current.add(row.id);
+          void loadFollowups(true);
+          setNewPatientArrival({
+            id: row.id,
+            name: row.name ?? "New patient",
+            arrivedAt: Date.now(),
+          });
+        },
+      )
+      .subscribe();
     return () => {
       void sb.removeChannel(channel);
     };
@@ -289,6 +343,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         expandedPatient,
         setExpandedPatient,
         closeConsultAndGeneratePassport,
+        newPatientArrival,
+        dismissNewPatientArrival,
       }}
     >
       {children}
