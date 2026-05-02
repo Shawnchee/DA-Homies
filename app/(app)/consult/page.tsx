@@ -324,10 +324,18 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
 // Billing
 // ─────────────────────────────────────────────────────────────────────
 function BillingCard({ items }: { items: BillingItem[] }) {
+  // Tick-list state — doctor checks off each item as they confirm it
+  // was actually billed. Resets when a new pipeline run lands (the
+  // items array identity changes via the parent's useMemo).
+  const [checked, setChecked] = useState<Record<number, boolean>>({});
+  useEffect(() => {
+    setChecked({});
+  }, [items]);
+  const tickCount = Object.values(checked).filter(Boolean).length;
   return (
     <OutputCardShell
       title="Billing recovery"
-      meta={`${items.length} items`}
+      meta={`${tickCount} of ${items.length} ticked`}
       delay={180}
       footer={
         <>
@@ -351,67 +359,82 @@ function BillingCard({ items }: { items: BillingItem[] }) {
           No billable items captured for this visit.
         </div>
       )}
-      {items.map((it, i) => (
-        <div
-          key={i}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "18px 1fr",
-            gap: 12,
-            alignItems: "start",
-            padding: "10px 12px",
-            marginLeft: -8,
-            marginRight: -8,
-            marginBottom: 2,
-            borderRadius: 8,
-            borderLeft: it.flagged
-              ? `2px solid ${C.amber}`
-              : `2px solid transparent`,
-            background: "transparent",
-          }}
-        >
-          <span
+      {items.map((it, i) => {
+        const isChecked = !!checked[i];
+        const toggle = () =>
+          setChecked((prev) => ({ ...prev, [i]: !prev[i] }));
+        return (
+          <label
+            key={i}
+            htmlFor={`bill-${i}`}
             style={{
-              color: it.flagged ? C.amber : C.green,
-              display: "inline-flex",
-              marginTop: 2,
+              display: "grid",
+              gridTemplateColumns: "20px 1fr",
+              gap: 12,
+              alignItems: "start",
+              padding: "10px 12px",
+              marginLeft: -8,
+              marginRight: -8,
+              marginBottom: 2,
+              borderRadius: 8,
+              borderLeft: it.flagged
+                ? `2px solid ${C.amber}`
+                : `2px solid transparent`,
+              background: isChecked ? C.bgAlt : "transparent",
+              cursor: "pointer",
+              transition: "background 140ms ease",
             }}
           >
-            {it.flagged ? Icon.warn(14) : Icon.check(14)}
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div
+            <input
+              id={`bill-${i}`}
+              type="checkbox"
+              checked={isChecked}
+              onChange={toggle}
               style={{
-                fontSize: 13.5,
-                color: C.text,
-                fontWeight: it.flagged ? 600 : 500,
+                width: 16,
+                height: 16,
+                marginTop: 3,
+                cursor: "pointer",
+                accentColor: C.brand,
               }}
-            >
-              {it.item}
-            </div>
-            {it.flagged && (
+            />
+            <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  marginTop: 5,
-                  padding: "2px 8px",
-                  fontSize: 10.5,
-                  fontWeight: 600,
-                  letterSpacing: 0.3,
-                  color: C.amber,
-                  border: `1px solid ${C.amberBorder}`,
-                  borderRadius: 999,
-                  background: "transparent",
+                  fontSize: 13.5,
+                  color: isChecked ? C.muted : C.text,
+                  fontWeight: it.flagged ? 600 : 500,
+                  textDecoration: isChecked ? "line-through" : "none",
+                  textDecorationColor: C.muted,
                 }}
               >
-                {Icon.warn(10)} In notes, not yet billed
+                {it.item}
               </div>
-            )}
-          </div>
-        </div>
-      ))}
+              {it.flagged && (
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginTop: 5,
+                    padding: "2px 8px",
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                    color: C.amber,
+                    border: `1px solid ${C.amberBorder}`,
+                    borderRadius: 999,
+                    background: "transparent",
+                    opacity: isChecked ? 0.5 : 1,
+                  }}
+                >
+                  {Icon.warn(10)} In notes, not yet billed
+                </div>
+              )}
+            </div>
+          </label>
+        );
+      })}
     </OutputCardShell>
   );
 }
