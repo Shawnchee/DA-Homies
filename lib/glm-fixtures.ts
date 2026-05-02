@@ -282,7 +282,7 @@ export function triageFixture(params: CallGLMParams): TriageFixtureOutput {
 
 /* ─── consult + brief fixtures (unchanged) ──────────────────────────────── */
 
-export function consultFixture(): ConsultOutput {
+export function consultFixture(_params: CallGLMParams): ConsultOutput {
   return GLM_CONSULT_OUTPUT;
 }
 

@@ -1,4 +1,4 @@
-import { getJSON, postJSON, uploadPhotos } from "./api-base";
+import { getJSON, postJSON, postForm, uploadPhotos } from "./api-base";
 import type {
   GetPatientsResponse,
   CreatePatientRequest,
@@ -46,6 +46,12 @@ export const api = {
       "/api/consult/telegram-send",
       req,
     ),
+
+  transcribe: (blob: Blob) => {
+    const fd = new FormData();
+    fd.append("audio", blob);
+    return postForm<{ transcript: string }>("/api/transcribe", fd);
+  },
 
   /** Multipart upload of one or more images to a Supabase Storage bucket. */
   uploadPhotos,

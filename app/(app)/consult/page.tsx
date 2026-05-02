@@ -1469,6 +1469,7 @@ function ConsultContent() {
                 style={{ background: "#10b93aff", borderColor: "#10b981" }}
                 icon={Icon.check(14)}
                 onClick={async () => {
+                  if (!patient || !output) return;
                   try {
                     const { visit } = await api.createVisit({
                       patientId: patient.id,
