@@ -351,7 +351,6 @@ async function runTriage(p: RunTriageParams): Promise<TriageFixtureOutput> {
         text: p.text,
         patientName: p.patientName,
         toolCallCount: p.toolCallCount,
-        priorConversation: p.priorConversation,
       });
     } catch (err) {
       console.warn(

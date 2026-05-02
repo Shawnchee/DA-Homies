@@ -36,6 +36,7 @@ RULES:
 - For decisions: write `ownerReplyDraft` as a warm, signed-off Telegram message ending "— {clinic_name}". Write `doctorSummary` as a one-line internal note.
 - For tool_calls: write `ownerPrompt` as the message the bot will send to the owner asking for the info.
 - Reference prior consultation notes in your reasoning when they're relevant (e.g., "given last week's surgery, post-op infection is differential 1").
+- **TESTING MODE:** If your decision or tool_call is directly influenced by a "Clinic Standard Operating Procedure" (SOP), you MUST prefix your `ownerReplyDraft` or `ownerPrompt` with the 🧠 emoji so we can verify the Brain is working.
 
 Output JSON matching the schema. Differentials sum to ~1.0 with `tone="red"` for concerning causes and `tone="green"` for benign ones."""
 
@@ -46,51 +47,55 @@ def build_system_prompt(history: list[ConsultationNote]) -> str:
 
     lines = [BASE_SYSTEM, "", "Prior consultation notes for this patient:"]
     for note in history:
-        lines.append(
-            f"- [{note['consulted_at']}] {note['chief_complaint']} "
-            f"→ {note['diagnosis']} / {note['treatment']}"
-        )
+        lines.append(f"- [{note['visit_date']}]")
+        if note.get("soap_note"):
+            lines.append(f"  SOAP: {note['soap_note']}")
+        if note.get("prescription"):
+            lines.append(f"  Prescription: {note['prescription']}")
+
     return "\n".join(lines)
 
 
 def build_triage_system_prompt(
     history: list[ConsultationNote],
     *,
+    clinic_sops: list[dict],
     patient_name: str,
     tool_call_count: int,
-    conversation_text: str,
     clinic_name: str = "the clinic",
 ) -> str:
     """System prompt for the owner-facing triage flow.
 
-    Folds in prior consultation notes (long-term store), the
-    conversation-so-far (per-followup checkpointer), and the
+    Folds in prior consultation notes (from Supabase), clinic-specific
+    SOPs (from LangGraph store), the conversation-so-far, and the
     tool-call budget so the model can decide whether to ask or commit.
-
-    `clinic_name` is interpolated into the system prompt so the model's
-    sign-off matches the deploying clinic. The TS sidecar client should
-    forward `ENV.clinic.name` here.
     """
     parts = [TRIAGE_SYSTEM_TEMPLATE.format(clinic_name=clinic_name), ""]
 
     parts.append(f"Patient name: {patient_name}")
     parts.append(f"Tool calls used so far this case: {tool_call_count} (max 1)")
 
+    if clinic_sops:
+        parts.append("")
+        parts.append("Clinic Standard Operating Procedures (Follow these strictly):")
+        for sop in clinic_sops:
+            # Assuming SOPs are stored as dicts with a 'rules' list or similar
+            # Based on brain.md, we consolidate into a 'master_guidelines' document
+            rules = sop.get("rules", [])
+            for rule in rules:
+                parts.append(f"- {rule}")
+
     if history:
         parts.append("")
         parts.append("Prior consultation notes for this patient:")
         for note in history:
-            parts.append(
-                f"- [{note['consulted_at']}] {note['chief_complaint']} "
-                f"→ {note['diagnosis']} / {note['treatment']}"
-            )
+            parts.append(f"- [{note['visit_date']}]")
+            if note.get("soap_note"):
+                parts.append(f"  SOAP: {note['soap_note']}")
+            if note.get("prescription"):
+                parts.append(f"  Prescription: {note['prescription']}")
     else:
         parts.append("")
         parts.append("No prior consultation notes for this patient.")
-
-    if conversation_text:
-        parts.append("")
-        parts.append("Conversation so far:")
-        parts.append(conversation_text)
 
     return "\n".join(parts)
