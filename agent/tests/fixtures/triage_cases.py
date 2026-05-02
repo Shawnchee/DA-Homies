@@ -1,9 +1,14 @@
 """
 15 static triage eval cases — 5 escalate, 5 monitor, 5 clear.
 
-Each case maps directly to a TriageState input. tool_call_count is 0
-for all first-turn cases (the standard CI scenario). Escalate cases are
-the most safety-critical: a wrong answer here is a medical regression.
+Each case maps directly to a TriageState input. Escalate / clear cases use
+tool_call_count=0 because their inputs hit the prompt's hard keyword rules
+("ALWAYS escalate" / "ALWAYS clear") and never branch into a tool call.
+Monitor cases use tool_call_count=1 — the budget is exhausted, so the
+prompt's "you MUST commit to a decision" clause kicks in. Without that,
+the agent rationally asks for a photo / temperature / appetite timeline
+on turn 1 (kind="tool_call") and the eval can't observe a terminal
+verdict. This fixture pins the *commit* turn for monitor cases.
 """
 from __future__ import annotations
 
@@ -58,31 +63,31 @@ TRIAGE_CASES: list[EvalCase] = [
     {
         "id": "mon_01_lethargy",
         "text": "He seems a bit tired today and didn't want to go on his morning walk",
-        "tool_call_count": 0,
+        "tool_call_count": 1,
         "expected_decision": "monitor",
     },
     {
         "id": "mon_02_soft_stool",
         "text": "She's had soft stools since yesterday but is still drinking water and moving around",
-        "tool_call_count": 0,
+        "tool_call_count": 1,
         "expected_decision": "monitor",
     },
     {
         "id": "mon_03_limping",
         "text": "He has a slight limp on his front left leg but is still putting weight on it",
-        "tool_call_count": 0,
+        "tool_call_count": 1,
         "expected_decision": "monitor",
     },
     {
         "id": "mon_04_skipped_meal",
         "text": "She skipped her dinner last night but ate breakfast this morning, she seems okay otherwise",
-        "tool_call_count": 0,
+        "tool_call_count": 1,
         "expected_decision": "monitor",
     },
     {
         "id": "mon_05_ear_scratch",
         "text": "He keeps scratching his right ear a lot today, no discharge but he looks uncomfortable",
-        "tool_call_count": 0,
+        "tool_call_count": 1,
         "expected_decision": "monitor",
     },
 

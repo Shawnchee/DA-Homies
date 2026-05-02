@@ -52,6 +52,21 @@ def _by(decision: Decision) -> list[dict]:
     return [c for c in TRIAGE_CASES if c["expected_decision"] == decision]
 
 
+def _describe(output) -> str:
+    """Render what the agent returned in a way that distinguishes the
+    three failure modes the eval cares about:
+      - parse failure          → 'None (parse error)'
+      - tool-call branch taken → 'tool_call:<tool>' (decision is None
+                                  because kind != "decision")
+      - wrong terminal verdict → the actual decision string
+    """
+    if output is None:
+        return "None (parse error)"
+    if output.kind == "tool_call":
+        return f"tool_call:{output.tool}"
+    return str(output.decision)
+
+
 def _fmt_failure(case: dict, got: str) -> str:
     return (
         f"\n  [{case['id']}]\n"
@@ -99,8 +114,7 @@ async def test_monitor_threshold() -> None:
         if output and output.decision == "monitor":
             passed.append(case["id"])
         else:
-            got = output.decision if output else "None (parse error)"
-            failed.append(_fmt_failure(case, got))
+            failed.append(_fmt_failure(case, _describe(output)))
 
     assert len(passed) >= MONITOR_REQUIRED, (
         f"\nMonitor gate: {len(passed)}/{len(cases)} passed "
@@ -124,8 +138,7 @@ async def test_clear_threshold() -> None:
         if output and output.decision == "clear":
             passed.append(case["id"])
         else:
-            got = output.decision if output else "None (parse error)"
-            failed.append(_fmt_failure(case, got))
+            failed.append(_fmt_failure(case, _describe(output)))
 
     assert len(passed) >= CLEAR_REQUIRED, (
         f"\nClear gate: {len(passed)}/{len(cases)} passed "
