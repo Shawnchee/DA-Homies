@@ -24,10 +24,17 @@ export async function postJSON<Req, Res>(url: string, body: Req): Promise<Res> {
   return resp.json();
 }
 
-/** Multipart upload of one or more images to a Supabase Storage bucket. */
-export async function uploadPhotos(files: File[]): Promise<string[]> {
+/** 
+ * Multipart upload of one or more images to a Supabase Storage bucket. 
+ * Matches the interface expected by app/(app)/consult/page.tsx.
+ */
+export async function uploadPhotos(
+  files: File[],
+  bucket: string = "consult-photos"
+): Promise<{ uploads: { url: string }[] }> {
   const formData = new FormData();
   files.forEach((f) => formData.append("files", f));
+  formData.append("bucket", bucket);
 
   const resp = await fetch("/api/storage/upload", {
     method: "POST",
@@ -39,6 +46,16 @@ export async function uploadPhotos(files: File[]): Promise<string[]> {
     throw new Error(error || "Upload failed");
   }
 
-  const { urls } = await resp.json();
-  return urls;
+  // The server returns { urls: string[] } or { uploads: { url: string }[] }
+  // Based on the UI usage, we need the latter.
+  const data = await resp.json();
+  
+  // Back-compat: if the API returns { urls: [] }, map it to the expected shape
+  if (data.urls && !data.uploads) {
+    return {
+      uploads: data.urls.map((url: string) => ({ url }))
+    };
+  }
+
+  return data as { uploads: { url: string }[] };
 }
