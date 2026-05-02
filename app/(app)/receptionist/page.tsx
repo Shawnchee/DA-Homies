@@ -60,6 +60,21 @@ export default function ReceptionistPage() {
     setStatus({ kind: "idle" });
   }
 
+  /** One-click demo data — Leo urinary obstruction case (mirrors Milo). */
+  function loadDemo() {
+    setName("Leo");
+    setSpecies("Dog");
+    setBreed("Labrador Retriever");
+    setAge("5");
+    setSex("Male");
+    setOwnerName("Lim Chee Wei");
+    setOwnerPhone("+60 13 928 4717");
+    setReason(
+      "Owner reports straining to urinate, blood in urine x 2 days. Lethargic since this morning.",
+    );
+    setStatus({ kind: "idle" });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const parsedAge = parseInt(age, 10);
@@ -105,6 +120,11 @@ export default function ReceptionistPage() {
         eyebrow="Reception desk"
         title="New patient intake"
         sub="Register a new pet at the front desk. Brief auto-generates and the patient appears on Dr. Amirah's dashboard instantly."
+        right={
+          <Button variant="soft" size="sm" onClick={loadDemo} disabled={sending}>
+            Load demo data
+          </Button>
+        }
       />
 
       <div
