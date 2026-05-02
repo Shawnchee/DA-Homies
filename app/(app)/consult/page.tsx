@@ -924,18 +924,43 @@ function ConsultContent() {
       flashToast("Mic not supported in this browser");
       return;
     }
+    // Probe MediaRecorder for a MIME the browser will actually honor.
+    // Hardcoding "audio/webm" silently produced corrupt streams in some
+    // builds (browser fell back to a different codec but the Blob kept
+    // the webm label, Deepgram then rejected with "corrupt or unsupported
+    // data"). Pick the first supported in priority order — Deepgram
+    // accepts webm/opus, ogg/opus, and mp4 directly.
+    const candidateMimes = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/mp4",
+    ];
+    const supportedMime =
+      typeof MediaRecorder !== "undefined"
+        ? candidateMimes.find((m) => MediaRecorder.isTypeSupported(m))
+        : undefined;
+    if (!supportedMime) {
+      flashToast("Browser cannot record any Deepgram-compatible audio format");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStream.current = stream;
       audioChunks.current = [];
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const mr = new MediaRecorder(stream, { mimeType: supportedMime });
       mediaRecorder.current = mr;
       mr.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) audioChunks.current.push(e.data);
       };
       mr.onstop = async () => {
         stopMicTracks();
-        const blob = new Blob(audioChunks.current, { type: "audio/webm" });
+        // Use the recorder's actual MIME (mr.mimeType) — browsers may
+        // append the negotiated codec, and we want the Blob's type to
+        // match the bytes exactly so the transcribe route forwards the
+        // right Content-Type to Deepgram.
+        const recordedMime = mr.mimeType || supportedMime;
+        const blob = new Blob(audioChunks.current, { type: recordedMime });
         audioChunks.current = [];
         if (blob.size === 0) return;
         setTranscribing(true);
