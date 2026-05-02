@@ -9,7 +9,14 @@ export async function POST(req: Request) {
       throw new ApiError(503, "Supabase connection required");
     }
 
-    const { patientId, rawNotes, soap, prescription, billing, todos } = await req.json();
+    const { 
+      patientId, 
+      rawNotes, 
+      soap, 
+      prescription, 
+      billing, 
+      todos,
+    } = await req.json();
     const db = getSupabaseServer();
 
     // 1. Insert into visits table
@@ -28,7 +35,7 @@ export async function POST(req: Request) {
 
     if (visitError) throw visitError;
 
-    return json({ success: true, visitId: visit.id });
+    return json({ visit });
   } catch (err) {
     return errorResponse(err);
   }

@@ -169,8 +169,14 @@ export interface TelegramSendRequest {
   aftercare?: string[];
   /** Patient whose owner_telegram should be back-written on success. */
   patientId: string;
-  /** Optional visit reference for audit. Not yet persisted but reserved. */
+  /** Patient name for the followup record. */
+  patientName: string;
+  /** Optional visit reference for audit. */
   visitId?: string;
+  /** Initial status for the followup (e.g. 'monitor'). */
+  status?: string;
+  /** The recommendation text for the followup dashboard. */
+  recommendedAction?: string;
 }
 export interface TelegramSendResponse {
   ok: true;
@@ -202,6 +208,8 @@ export function parseTelegramSendRequest(raw: unknown): TelegramSendRequest {
     throw new ApiError(400, "patientId required");
   if (r.patientId.length > 100)
     throw new ApiError(400, "patientId too long");
+  if (typeof r.patientName !== "string" || !r.patientName.trim())
+    throw new ApiError(400, "patientName required");
   let aftercare: string[] | undefined;
   if (r.aftercare !== undefined) {
     if (
@@ -230,7 +238,10 @@ export function parseTelegramSendRequest(raw: unknown): TelegramSendRequest {
     body: r.body,
     aftercare,
     patientId: r.patientId,
+    patientName: r.patientName,
     visitId: typeof r.visitId === "string" ? r.visitId : undefined,
+    status: typeof r.status === "string" ? r.status : undefined,
+    recommendedAction: typeof r.recommendedAction === "string" ? r.recommendedAction : undefined,
   };
 }
 
@@ -273,6 +284,39 @@ export type GetAnalyticsResponse = {
   diagnoses: DiagnosisRow[];
   corrections: CorrectionRow[];
 };
+
+// ─── /api/visits ────────────────────────────────────────────────────────────
+export interface CreateVisitRequest {
+  patientId: string;
+  patientName?: string;
+  telegramChatId?: string;
+  rawNotes: string;
+  soap: Record<string, unknown>; // Complex structured object from GLM
+  prescription: Record<string, unknown>;
+  billing: Record<string, unknown>;
+  todos: Record<string, unknown>;
+}
+export type CreateVisitResponse = {
+  ok: true;
+  visitId: string;
+};
+export function parseCreateVisitRequest(raw: unknown): CreateVisitRequest {
+  const r = raw as Partial<CreateVisitRequest>;
+  if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
+  if (typeof r.patientId !== "string" || !r.patientId)
+    throw new ApiError(400, "patientId required");
+  if (typeof r.rawNotes !== "string") throw new ApiError(400, "rawNotes required");
+  return {
+    patientId: r.patientId,
+    patientName: r.patientName,
+    telegramChatId: r.telegramChatId,
+    rawNotes: r.rawNotes,
+    soap: r.soap,
+    prescription: r.prescription,
+    billing: r.billing,
+    todos: r.todos,
+  };
+}
 
 // ─── /api/corrections ───────────────────────────────────────────────────────
 export interface CorrectionRequest {

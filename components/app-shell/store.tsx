@@ -89,7 +89,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(() => loadFollowups(false), [loadFollowups]);
 
   useEffect(() => {
-    void loadFollowups(false);
+    // Initial mount already has loading=true, so we can load 'silently'
+    // but we defer to avoid the synchronous setState lint error.
+    const t = setTimeout(() => {
+      void loadFollowups(true);
+    }, 0);
+    return () => clearTimeout(t);
   }, [loadFollowups]);
 
   /* ─── Supabase Realtime on `followups` ────────────────────────────────
@@ -181,13 +186,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         chatId: cur.chatId,
         body,
         patientId: cur.patientId,
+        patientName: cur.patient,
       });
-      // Log the doctor's approval after a successful delivery.
+      // Log the doctor's approval/correction after a successful delivery.
+      const isCorrected = body !== cur.draft;
       void api
         .correction({
           feature: "triage",
           followupId: cur.id,
           glmOutput: cur.level,
+          doctorCorrection: isCorrected ? body : undefined,
           approved: true,
         })
         .catch(() => {});

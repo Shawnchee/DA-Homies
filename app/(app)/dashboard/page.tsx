@@ -297,8 +297,8 @@ function PatientRow({
   const [briefReady, setBriefReady] = useState(false);
   useEffect(() => {
     if (!expanded) {
-      setBriefReady(false);
-      return;
+      const t = setTimeout(() => setBriefReady(false), 0);
+      return () => clearTimeout(t);
     }
     const t = setTimeout(() => setBriefReady(true), 200);
     return () => clearTimeout(t);
@@ -779,7 +779,6 @@ export default function DashboardPage() {
     refresh,
     expandedPatient,
     setExpandedPatient,
-    flashToast,
   } = useStore();
 
   const escalations = followups.filter((f) => f.level === "escalate");
