@@ -52,23 +52,22 @@ export interface HandleOwnerMessageResult {
  * for doctor review and only delivered when the doctor clicks
  * "Approve & Send" in the UI.
  */
-const HOLDING_REPLY =
-  "Thanks — we've got your update. Your vet will review and reply shortly.";
-
-/** Terminal decisions never auto-send; they wait for doctor approval. */
-export function isTerminalDecision(
-  d: HandleOwnerMessageResult["decision"],
-): boolean {
-  return d === "escalate" || d === "monitor" || d === "clear";
-}
-
 /**
- * What to actually send back to the owner immediately. Tool-call prompts
- * (info-gathering) and unlinked-chat help auto-send; terminal medical
- * decisions return the holding message and wait for doctor approval.
+ * What to actually send back to the owner immediately. 
+ * Tool-calls and unlinked-help auto-send. 
+ * Terminal decisions return a specific "holding" message based on the level.
  */
 export function ownerAutoReply(result: HandleOwnerMessageResult): string {
-  return isTerminalDecision(result.decision) ? HOLDING_REPLY : result.reply;
+  if (result.decision === "escalate") {
+    return "🚨 URGENT: Based on your update, we are prioritizing this for immediate clinical review. Please stay by your phone — a member of the team will reach out to you right away.";
+  }
+  if (result.decision === "monitor") {
+    return "Thanks for the update. We've noted your concerns and our clinical team will review them shortly to confirm if any change in care is needed. We'll be in touch!";
+  }
+  if (result.decision === "clear") {
+    return "Great to hear! We've updated your vet with this good news. They will review it and close the follow-up case soon. Feel free to reach out if anything else changes!";
+  }
+  return result.reply;
 }
 
 export interface OwnerMessageInput {
@@ -167,6 +166,15 @@ export async function handleOwnerMessage(
     typeof textOrInput === "string" ? { text: textOrInput } : textOrInput;
   const text =
     input.text || (input.photoFileIds?.length ? "(photo only — no caption)" : "");
+  
+  // 1. Handle /start command specifically to avoid confusing the AI
+  if (text.trim().toLowerCase() === "/start") {
+    return { 
+      reply: `Hi! I'm your clinic's AI assistant. I'm here to help ${ENV.clinic.name} monitor your pet's recovery. When the clinic starts a follow-up for you, I'll reach out here!`, 
+      decision: "awaiting_info" 
+    };
+  }
+
   let row: FollowupRowMini | null = null;
 
   if (hasSupabaseAdmin()) {
@@ -369,7 +377,7 @@ export async function handleOwnerMessage(
   }
 
   return {
-    reply: result.ownerReplyDraft,
+    reply: result.ownerReplyDraft || "Thank you for the update. Our clinical team has been notified and will review this shortly.",
     decision: result.decision,
     followupId: row.id,
     confidence: result.confidence,
