@@ -284,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           glmTriage: f.botLevel,
           doctorTriage: level,
           rejectionReason: reason,
-          approved: false,
+          approved: true,
         })
         .catch(() => {});
     },
