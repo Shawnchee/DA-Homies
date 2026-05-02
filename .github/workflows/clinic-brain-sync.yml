@@ -26,8 +26,8 @@ jobs:
 
       - name: Run Memory Consolidation
         env:
-          # These must be added to your GitHub Repo Secrets
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # Map GitHub Secrets to the variable names expected by the Python code
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
