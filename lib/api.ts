@@ -53,6 +53,11 @@ export const api = {
     patientSpecies: string;
     diagnosis: string;
     drugs: string[];
+    breed?: string;
+    age?: string;
+    chiefComplaint?: string;
+    soapAssessment?: string;
+    relevantHistory?: string;
   }) =>
     postJSON<
       typeof req,

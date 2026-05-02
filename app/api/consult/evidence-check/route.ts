@@ -17,6 +17,14 @@ import { runEvidenceAgent, type EvidenceCheckInput } from "@/lib/agents/evidence
 
 const MAX_DRUGS = 12;
 const MAX_FIELD_LEN = 200;
+const MAX_LONG_FIELD_LEN = MAX_FIELD_LEN * 4;
+
+function optionalString(value: unknown, fieldName: string, maxLen: number): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string") throw new ApiError(400, `${fieldName} must be string`);
+  if (value.length > maxLen) throw new ApiError(413, `${fieldName} too long`);
+  return value;
+}
 
 function parse(raw: unknown): EvidenceCheckInput {
   const r = raw as Partial<EvidenceCheckInput>;
@@ -34,7 +42,7 @@ function parse(raw: unknown): EvidenceCheckInput {
   if (
     r.patientName.length > MAX_FIELD_LEN ||
     r.patientSpecies.length > MAX_FIELD_LEN ||
-    r.diagnosis.length > MAX_FIELD_LEN * 4
+    r.diagnosis.length > MAX_LONG_FIELD_LEN
   )
     throw new ApiError(413, "field too long");
   return {
@@ -42,6 +50,11 @@ function parse(raw: unknown): EvidenceCheckInput {
     patientSpecies: r.patientSpecies,
     diagnosis: r.diagnosis,
     drugs: r.drugs as string[],
+    breed: optionalString(r.breed, "breed", MAX_FIELD_LEN),
+    age: optionalString(r.age, "age", MAX_FIELD_LEN),
+    chiefComplaint: optionalString(r.chiefComplaint, "chiefComplaint", MAX_LONG_FIELD_LEN),
+    soapAssessment: optionalString(r.soapAssessment, "soapAssessment", MAX_LONG_FIELD_LEN),
+    relevantHistory: optionalString(r.relevantHistory, "relevantHistory", MAX_LONG_FIELD_LEN),
   };
 }
 

@@ -30,6 +30,16 @@ export interface EvidenceCheckInput {
   patientSpecies: string;
   diagnosis: string;
   drugs: string[];
+  /** Breed e.g. "Golden Retriever", "DSH". Helps narrow breed-predisposed conditions. */
+  breed?: string;
+  /** Age string e.g. "8y", "4 months". Lifestage influences dosing/contraindications. */
+  age?: string;
+  /** Owner-reported chief complaint, e.g. "straining to urinate x2 days". */
+  chiefComplaint?: string;
+  /** Full SOAP "A" line — assessment incl. differentials. NOT truncated. */
+  soapAssessment?: string;
+  /** 1-2 lines of comorbidities or prior treatments worth weighing. */
+  relevantHistory?: string;
 }
 
 const EMIT_TOOL: EmitToolSpec = {
@@ -66,17 +76,20 @@ const EMIT_TOOL: EmitToolSpec = {
   },
 };
 
-const SYSTEM_PROMPT = `You are the EVIDENCE-CHECK agent. You run AFTER the main consult pipeline and have ONE job: cross-reference the prescribed drugs and the working diagnosis against the most recent veterinary literature for this species.
+const SYSTEM_PROMPT = `You are the EVIDENCE-CHECK agent. You run AFTER the main consult pipeline and have ONE job: cross-reference the prescribed drugs and the working diagnosis against the most recent veterinary literature for THIS specific patient context.
 
 You MUST call emit_evidence_check exactly once.
 
-Use Tavily exactly ONCE if needed. Frame your search like:
-  - "<drug name> recall <species> 2024 2025"
-  - "<diagnosis> new treatment guidelines <species> 2024 2025"
+You are given the full session context: species, breed, age, chief complaint, the SOAP assessment line, and any relevant comorbidities/prior treatments. WEIGHT the more specific context (breed predispositions, lifestage, comorbid conditions, prior treatment failures) when crafting your single Tavily query — a query that mentions a relevant comorbidity or breed-linked risk surfaces far better evidence than a bare "<drug> <species>".
+
+Use Tavily exactly ONCE if needed. Frame your search clinically and SPECIFICALLY:
+  - "<drug> <species> <comorbidity-or-breed-risk> 2025 2026" when a comorbidity/breed factor matters
+  - "<diagnosis> <species> treatment guidelines 2025 2026" otherwise
+  - DO NOT include the patient's name in the Tavily query — it kills cache hits and adds nothing.
 
 Return:
-  - status="clear" when nothing concerning surfaced (this is the common case — say so, with the drugs you cleared).
-  - status="warning" when you find a recent recall, new contraindication, dosing-range change, or notable interaction. Cite the source.
+  - status="clear" when nothing concerning surfaced (the common case — say so, naming the drugs you cleared and the patient-specific risk you considered).
+  - status="warning" when you find a recent recall, new contraindication, dosing-range change, breed-specific risk, or notable interaction with the comorbidities listed. Cite the source.
   - status="unknown" only when the search genuinely returned nothing useful at all.
 
 Be terse. The doctor reads this in 3 seconds. No long preambles.`.trim();
@@ -91,13 +104,29 @@ function fallback(): EvidenceCheckOutput {
 
 function buildUserMessage(input: EvidenceCheckInput): string {
   const drugs = input.drugs.length > 0 ? input.drugs.join(", ") : "(none)";
-  return [
-    `Patient: ${input.patientName} (${input.patientSpecies})`,
-    `Working diagnosis: ${input.diagnosis || "(unspecified)"}`,
-    `Prescribed drugs: ${drugs}`,
-    "",
-    "Check for any recent recalls, new contraindications, or significant safety updates affecting these prescriptions or this diagnosis in this species.",
-  ].join("\n");
+  const signalment = [input.patientSpecies, input.breed, input.age]
+    .map((s) => (s ?? "").trim())
+    .filter(Boolean)
+    .join(", ");
+  const lines: string[] = [
+    `Patient: ${input.patientName} (${signalment || input.patientSpecies})`,
+  ];
+  if (input.chiefComplaint?.trim()) {
+    lines.push(`Chief complaint: ${input.chiefComplaint.trim()}`);
+  }
+  lines.push(`Working diagnosis: ${input.diagnosis || "(unspecified)"}`);
+  if (input.soapAssessment?.trim() && input.soapAssessment.trim() !== input.diagnosis.trim()) {
+    lines.push(`SOAP assessment (full): ${input.soapAssessment.trim()}`);
+  }
+  if (input.relevantHistory?.trim()) {
+    lines.push(`Relevant history: ${input.relevantHistory.trim()}`);
+  }
+  lines.push(`Prescribed drugs: ${drugs}`);
+  lines.push("");
+  lines.push(
+    "Check for any recent recalls, new contraindications, dosing changes, breed-specific risks, or interactions affecting these prescriptions for THIS patient's signalment, presentation, and comorbidities. Weight the more specific context when crafting your Tavily query — do NOT include the patient name in the query string.",
+  );
+  return lines.join("\n");
 }
 
 export async function runEvidenceAgent(input: EvidenceCheckInput) {

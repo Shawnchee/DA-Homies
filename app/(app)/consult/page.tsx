@@ -162,7 +162,7 @@ function OutputCardShell({
 // ─────────────────────────────────────────────────────────────────────
 // SOAP
 // ─────────────────────────────────────────────────────────────────────
-function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
+function SoapCard({ s }: { s: SoapNote }) {
   const rows: { k: "S" | "O" | "A" | "P"; v: string }[] = [
     { k: "S", v: s.S },
     { k: "O", v: s.O },
@@ -179,9 +179,6 @@ function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
           <div style={{ flex: 1 }} />
           <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
             Edit
-          </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
           </Button>
         </>
       }
@@ -232,13 +229,7 @@ function SoapCard({ s, onApprove }: { s: SoapNote; onApprove: () => void }) {
 // ─────────────────────────────────────────────────────────────────────
 // Prescription
 // ─────────────────────────────────────────────────────────────────────
-function PrescriptionCard({
-  rx,
-  onApprove,
-}: {
-  rx: PrescriptionItem[];
-  onApprove: () => void;
-}) {
+function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
   return (
     <OutputCardShell
       title="Prescription"
@@ -249,9 +240,6 @@ function PrescriptionCard({
           <div style={{ flex: 1 }} />
           <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
             Edit
-          </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
           </Button>
         </>
       }
@@ -335,17 +323,7 @@ function PrescriptionCard({
 // ─────────────────────────────────────────────────────────────────────
 // Billing
 // ─────────────────────────────────────────────────────────────────────
-function BillingCard({
-  items,
-  total,
-  flagged,
-  onApprove,
-}: {
-  items: BillingItem[];
-  total: number;
-  flagged: number;
-  onApprove: () => void;
-}) {
+function BillingCard({ items }: { items: BillingItem[] }) {
   return (
     <OutputCardShell
       title="Billing recovery"
@@ -353,36 +331,32 @@ function BillingCard({
       delay={180}
       footer={
         <>
-          <div
-            style={{
-              fontFamily: FONT_SERIF,
-              fontSize: 18,
-              fontWeight: 600,
-              color: C.text,
-              letterSpacing: -0.2,
-            }}
-          >
-            Total{" "}
-            <span style={{ fontFamily: FONT_MONO, fontSize: 15 }}>
-              RM {total}
-            </span>
-          </div>
           <div style={{ flex: 1 }} />
           <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
             Edit
           </Button>
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
-          </Button>
         </>
       }
     >
+      {items.length === 0 && (
+        <div
+          style={{
+            padding: "16px 0 4px",
+            fontSize: 13,
+            color: C.muted,
+            fontStyle: "italic",
+            textAlign: "center",
+          }}
+        >
+          No billable items captured for this visit.
+        </div>
+      )}
       {items.map((it, i) => (
         <div
           key={i}
           style={{
             display: "grid",
-            gridTemplateColumns: "18px 1fr auto",
+            gridTemplateColumns: "18px 1fr",
             gap: 12,
             alignItems: "start",
             padding: "10px 12px",
@@ -436,34 +410,8 @@ function BillingCard({
               </div>
             )}
           </div>
-          <div
-            style={{
-              fontFamily: FONT_MONO,
-              fontSize: 13,
-              fontWeight: 600,
-              color: C.text,
-              whiteSpace: "nowrap",
-            }}
-          >
-            RM {it.price}
-          </div>
         </div>
       ))}
-      <div
-        style={{
-          marginTop: 14,
-          paddingTop: 12,
-          borderTop: `1px solid ${C.borderSoft}`,
-          fontSize: 11,
-          color: C.hint,
-          lineHeight: 1.5,
-          fontStyle: "italic",
-        }}
-      >
-        Impact: 10% billing recovery × 400 consults/month × RM 250 avg = RM
-        10,000/month recovered.
-      </div>
-      <div style={{ display: "none" }}>{flagged}</div>
     </OutputCardShell>
   );
 }
@@ -471,7 +419,7 @@ function BillingCard({
 // ─────────────────────────────────────────────────────────────────────
 // Todos
 // ─────────────────────────────────────────────────────────────────────
-function TodoCard({ todos, onApprove }: { todos: TodoItem[]; onApprove: () => void }) {
+function TodoCard({ todos }: { todos: TodoItem[] }) {
   const [done, setDone] = useState<Record<number, boolean>>({});
   const assigneeTone = (who: string): "green" | "amber" | "neutral" => {
     const w = who.toLowerCase();
@@ -487,12 +435,25 @@ function TodoCard({ todos, onApprove }: { todos: TodoItem[]; onApprove: () => vo
       footer={
         <>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.check(13)} onClick={onApprove}>
-            Approve
+          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
+            Edit
           </Button>
         </>
       }
     >
+      {todos.length === 0 && (
+        <div
+          style={{
+            padding: "16px 0 4px",
+            fontSize: 13,
+            color: C.muted,
+            fontStyle: "italic",
+            textAlign: "center",
+          }}
+        >
+          No staff to-dos generated for this visit.
+        </div>
+      )}
       {todos.map((t, i) => (
         <div
           key={i}
@@ -739,6 +700,11 @@ type MedSchedulePayload = {
   end_date: string;
   meal_relation: "before_meal" | "after_meal" | "none";
   notes: string;
+  agentFollowup?: {
+    daysBetween: number;
+    firstCheckIn: string;
+    message: string;
+  };
 };
 
 const MED_PRESETS: {
@@ -818,6 +784,16 @@ function MedicationScheduleCard({
   const [mealRelation, setMealRelation] =
     useState<MedSchedulePayload["meal_relation"]>("none");
   const [notes, setNotes] = useState("");
+
+  const [followupDays, setFollowupDays] = useState<number>(3);
+  const [followupFirst, setFollowupFirst] = useState<string>(todayIso());
+  const [followupMessage, setFollowupMessage] = useState<string>(
+    `Hi ${patient.owner}, just checking in on ${patient.name}'s recovery — any change in straining, appetite, or energy levels?`
+  );
+
+  useEffect(() => {
+    setFollowupFirst(startDate);
+  }, [startDate]);
 
   const applyPreset = (id: (typeof MED_PRESETS)[number]["id"]) => {
     setPresetId(id);
@@ -901,7 +877,13 @@ function MedicationScheduleCard({
       end_date:      effectiveEnd,
       meal_relation: mealRelation,
       notes:         notes.trim(),
+      agentFollowup: {
+        daysBetween:  Math.max(1, followupDays || 1),
+        firstCheckIn: followupFirst,
+        message:      followupMessage.trim(),
+      },
     };
+    console.log("[MedicationScheduleCard] agentFollowup", payload.agentFollowup);
     onSubmit(payload);
   };
 
@@ -931,7 +913,105 @@ function MedicationScheduleCard({
         </>
       }
     >
-      <div style={{ display: "grid", gap: 20 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 2fr",
+          gap: 24,
+          alignItems: "stretch",
+        }}
+      >
+        {/* LEFT — Agent follow-up */}
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            alignContent: "start",
+            paddingRight: 24,
+            borderRight: `1px solid ${C.borderSoft}`,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 1.4,
+                textTransform: "uppercase",
+                color: C.text,
+                marginBottom: 4,
+              }}
+            >
+              AI follow-up
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>
+              When should the bot check on the owner?
+            </div>
+          </div>
+
+          <div>
+            <div style={lbl}>Days between check-ins</div>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={followupDays}
+              onChange={(e) => setFollowupDays(Number(e.target.value) || 0)}
+              style={{ ...inp, width: 110, fontFamily: FONT_MONO }}
+            />
+          </div>
+
+          <div>
+            <div style={lbl}>First check-in</div>
+            <input
+              type="date"
+              value={followupFirst}
+              min={startDate}
+              onChange={(e) => setFollowupFirst(e.target.value)}
+              style={{ ...inp, width: "100%", fontFamily: FONT_MONO }}
+            />
+          </div>
+
+          <div>
+            <div style={lbl}>Personalized message draft</div>
+            <textarea
+              value={followupMessage}
+              onChange={(e) => setFollowupMessage(e.target.value)}
+              rows={5}
+              style={{
+                ...inp,
+                width: "100%",
+                resize: "vertical",
+                minHeight: 110,
+                fontFamily: "inherit",
+                lineHeight: 1.5,
+              }}
+            />
+            <div style={{ fontSize: 11, color: C.hint, marginTop: 5 }}>
+              Sent to {patient.owner} via the linked channel.
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT — Medication reminder schedule */}
+        <div style={{ display: "grid", gap: 20, alignContent: "start" }}>
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 1.4,
+                textTransform: "uppercase",
+                color: C.text,
+                marginBottom: 4,
+              }}
+            >
+              Medication reminder schedule
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.45 }}>
+              Cadence, dates, and meal relation for the dosing reminders.
+            </div>
+          </div>
 
         {/* A — Quick preset */}
         <div>
@@ -1105,20 +1185,22 @@ function MedicationScheduleCard({
           </div>
         </div>
 
-        {/* D — Validation errors */}
-        {errors.length > 0 && (
-          <div
-            style={{
-              borderRadius: 8, border: `1px solid ${C.amberBorder}`,
-              padding: "10px 12px", fontSize: 12.5, color: C.amber,
-              display: "grid", gap: 4,
-            }}
-          >
-            {errors.map((e, i) => <div key={i}>· {e}</div>)}
-          </div>
-        )}
+        </div>{/* /RIGHT column */}
+      </div>{/* /grid */}
 
-      </div>
+      {/* D — Validation errors */}
+      {errors.length > 0 && (
+        <div
+          style={{
+            marginTop: 16,
+            borderRadius: 8, border: `1px solid ${C.amberBorder}`,
+            padding: "10px 12px", fontSize: 12.5, color: C.amber,
+            display: "grid", gap: 4,
+          }}
+        >
+          {errors.map((e, i) => <div key={i}>· {e}</div>)}
+        </div>
+      )}
     </OutputCardShell>
   );
 }
@@ -1166,13 +1248,19 @@ function EvidenceCheckCard({
     let cancelled = false;
     setState({ kind: "checking" });
     const drugs = output.prescription.map((p) => p.drug).filter(Boolean);
-    const diagnosis = output.soap.A?.split(/\.\s/)[0] ?? "";
+    const fullAssessment = output.soap.A ?? "";
+    const diagnosis = fullAssessment.split(/\.\s/)[0] ?? "";
     api
       .evidenceCheck({
         patientName: patient.name,
         patientSpecies: patient.species,
         diagnosis,
         drugs,
+        breed: patient.breed || undefined,
+        age: patient.age || undefined,
+        chiefComplaint: patient.reason || undefined,
+        soapAssessment: fullAssessment || undefined,
+        relevantHistory: patient.brief?.chronic || undefined,
       })
       .then((r) => {
         if (cancelled) return;
@@ -1822,10 +1910,6 @@ function ConsultContent() {
     };
   }, [stream.result]);
   const generating = stream.running;
-  const billTotal = useMemo(
-    () => (output ? output.billing.reduce((a, b) => a + b.price, 0) : 0),
-    [output]
-  );
   const billFlagged = useMemo(
     () =>
       output
@@ -2933,16 +3017,8 @@ function ConsultContent() {
 
           {status === "ready" && output && (
             <div style={{ display: "grid", gap: 14 }}>
-              <SoapCard
-                s={output.soap}
-                onApprove={() => flashToast("SOAP note approved")}
-              />
-              <PrescriptionCard
-                rx={output.prescription}
-                onApprove={() =>
-                  flashToast("Prescription approved · queued for dispensing")
-                }
-              />
+              <SoapCard s={output.soap} />
+              <PrescriptionCard rx={output.prescription} />
 
               {/* Recoverable callout — thin amber border, no wash */}
               {billFlagged > 0 && (
@@ -2977,18 +3053,8 @@ function ConsultContent() {
                 </div>
               )}
 
-              <BillingCard
-                items={output.billing}
-                total={billTotal}
-                flagged={billFlagged}
-                onApprove={() =>
-                  flashToast(`Billing approved · RM ${billFlagged} recovered`)
-                }
-              />
-              <TodoCard
-                todos={output.todos}
-                onApprove={() => flashToast("Staff to-dos dispatched")}
-              />
+              <BillingCard items={output.billing} />
+              <TodoCard todos={output.todos} />
               <EvidenceCheckCard
                 patient={patient}
                 output={output}
