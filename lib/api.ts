@@ -29,6 +29,25 @@ export const api = {
     postJSON<CreatePatientRequest, CreatePatientResponse>("/api/patients", req),
   getPatient: (id: string) =>
     getJSON<GetPatientResponse>(`/api/patients?id=${encodeURIComponent(id)}`),
+  preconsultSummary: (req: {
+    patientName: string;
+    patientSpecies: string;
+    patientBreed?: string;
+    patientAge?: string;
+    patientSex?: string;
+    reason?: string;
+    brief: {
+      lastVisit?: string;
+      chronic?: string;
+      compliance?: string;
+      pending?: string;
+      probe?: string;
+    };
+  }) =>
+    postJSON<
+      typeof req,
+      { summary: string; source: string; latencyMs?: number }
+    >("/api/consult/preconsult-summary", req),
   evidenceCheck: (req: {
     patientName: string;
     patientSpecies: string;

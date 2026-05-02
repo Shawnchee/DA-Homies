@@ -1369,6 +1369,149 @@ function FieldHeader({
   );
 }
 
+/**
+ * Pre-consult brief card — auto-fires once a patient is loaded. Sends
+ * the patient's structured brief + chief complaint to Haiku and renders
+ * the returned 1-minute-read paragraph for the doctor. Off the
+ * critical path (the consult notes input is still right below).
+ */
+function PreconsultBriefCard({ patient }: { patient: Patient }) {
+  type State =
+    | { kind: "loading" }
+    | { kind: "ready"; summary: string; latencyMs?: number; source: string }
+    | { kind: "error"; message: string };
+  const [state, setState] = useState<State>({ kind: "loading" });
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ kind: "loading" });
+    api
+      .preconsultSummary({
+        patientName: patient.name,
+        patientSpecies: patient.species,
+        patientBreed: patient.breed,
+        patientAge: patient.age,
+        patientSex: patient.sex,
+        reason: patient.reason || undefined,
+        brief: {
+          lastVisit: patient.brief.lastVisit,
+          chronic: patient.brief.chronic,
+          compliance: patient.brief.compliance,
+          pending: patient.brief.pending,
+          probe: patient.brief.probe,
+        },
+      })
+      .then((r) => {
+        if (cancelled) return;
+        setState({
+          kind: "ready",
+          summary: r.summary,
+          latencyMs: r.latencyMs,
+          source: r.source,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setState({
+          kind: "error",
+          message: err instanceof Error ? err.message : "summary failed",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    patient.id,
+    patient.name,
+    patient.reason,
+    patient.brief.lastVisit,
+    patient.brief.chronic,
+    patient.brief.compliance,
+    patient.brief.pending,
+    patient.brief.probe,
+  ]);
+
+  return (
+    <Card
+      style={{
+        padding: 0,
+        marginBottom: 24,
+        overflow: "hidden",
+        boxShadow: SHADOW_CARD,
+        animation: "fadeUp 320ms ease both",
+      }}
+    >
+      <div
+        style={{
+          padding: "12px 22px",
+          borderBottom: `1px solid ${C.borderSoft}`,
+          background: C.bgAlt,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 700,
+            letterSpacing: 1.4,
+            textTransform: "uppercase",
+            color: C.brand,
+          }}
+        >
+          1-minute read
+        </span>
+        <span style={{ color: C.border }}>·</span>
+        <span style={{ fontSize: 11.5, color: C.muted }}>
+          AI-generated from {patient.name}&apos;s pre-consult brief
+        </span>
+        <div style={{ flex: 1 }} />
+        {state.kind === "loading" && (
+          <span style={{ fontSize: 11, color: C.hint, fontStyle: "italic" }}>
+            generating…
+          </span>
+        )}
+        {state.kind === "ready" && state.latencyMs && (
+          <span
+            style={{
+              fontSize: 11,
+              color: C.hint,
+              fontFamily: FONT_MONO,
+            }}
+          >
+            {(state.latencyMs / 1000).toFixed(1)}s
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          padding: "18px 22px",
+          fontFamily: FONT_SERIF,
+          fontSize: 15,
+          lineHeight: 1.65,
+          color: C.text,
+        }}
+      >
+        {state.kind === "loading" && (
+          <div style={{ display: "grid", gap: 8 }}>
+            <Skeleton height={14} width="98%" />
+            <Skeleton height={14} width="92%" />
+            <Skeleton height={14} width="95%" />
+            <Skeleton height={14} width="60%" />
+          </div>
+        )}
+        {state.kind === "ready" && state.summary}
+        {state.kind === "error" && (
+          <span style={{ color: C.muted, fontStyle: "italic" }}>
+            Brief unavailable — proceed with the structured panel above.
+          </span>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function TelegramLinkRow({ patient }: { patient: Patient }) {
   const { flashToast, refresh } = useStore();
   const [editing, setEditing] = useState(false);
@@ -2276,6 +2419,8 @@ function ConsultContent() {
         </div>
         <TelegramLinkRow patient={patient} />
       </Card>
+
+      <PreconsultBriefCard patient={patient} />
 
       {/* Pipeline visibility toggle + (when on) live agent execution view.
           Off by default — routine consults stay calm. On for transparency:
