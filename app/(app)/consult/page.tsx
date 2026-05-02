@@ -963,6 +963,14 @@ function ConsultContent() {
         const blob = new Blob(audioChunks.current, { type: recordedMime });
         audioChunks.current = [];
         if (blob.size === 0) return;
+        // Anything under ~1KB is almost certainly the EBML header alone
+        // (no audio frames) — happens when the user stops within a few
+        // hundred ms of starting. Deepgram rejects header-only payloads
+        // with "corrupt or unsupported data". Surface a clearer error.
+        if (blob.size < 1024) {
+          flashToast("Recording too short — hold the mic for at least 1 second");
+          return;
+        }
         setTranscribing(true);
         try {
           const { transcript } = await api.transcribe(blob);
@@ -980,7 +988,12 @@ function ConsultContent() {
           setTranscribing(false);
         }
       };
-      mr.start();
+      // 250ms timeslice — without this, MediaRecorder only emits
+      // ondataavailable on stop. If the user stops quickly, the encoder
+      // hasn't flushed any audio frames yet and we get a header-only
+      // blob that Deepgram rejects. With timeslice, frames accumulate
+      // every 250ms so even a fast stop produces decodable audio.
+      mr.start(250);
       setRecording(true);
       setRecordSec(0);
       recordTimer.current = setInterval(() => {
