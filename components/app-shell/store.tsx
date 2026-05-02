@@ -340,10 +340,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await api.createVisit({
           patientId,
           rawNotes: "(close-case from consult page)",
-          soap: result.summary.doctorSummary.soap,
-          prescription: result.summary.prescription,
-          billing: result.summary.billing,
-          todos: result.summary.todos,
+          soap: result.summary.doctorSummary?.soap ?? {
+            S: "",
+            O: "",
+            A: "",
+            P: "",
+          },
+          prescription: result.summary.prescription ?? [],
+          billing: result.summary.billing ?? [],
+          todos: result.summary.todos ?? [],
           telegramChatId: chatId.trim(),
         });
       } catch (err) {

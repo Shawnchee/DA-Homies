@@ -1194,12 +1194,22 @@ function ConsultContent() {
   // pipeline produces `summary.doctorSummary.soap`, `summary.prescription`,
   // `summary.billing`, `summary.todos` — the existing card components only
   // ever wanted these four fields.
+  // Defensive defaults: any of the sub-agents (prescription, billing,
+  // todos) can fail mid-stream and leave its summary slice undefined.
+  // The cards/memos below assume arrays — coerce to [] here so a partial
+  // pipeline result still renders cleanly instead of throwing
+  // "Cannot read properties of undefined (reading 'reduce')".
   const output: ConsultOutput | null = stream.result
     ? {
-        soap: stream.result.summary.doctorSummary.soap,
-        prescription: stream.result.summary.prescription,
-        billing: stream.result.summary.billing,
-        todos: stream.result.summary.todos,
+        soap: stream.result.summary.doctorSummary?.soap ?? {
+          S: "",
+          O: "",
+          A: "",
+          P: "",
+        },
+        prescription: stream.result.summary.prescription ?? [],
+        billing: stream.result.summary.billing ?? [],
+        todos: stream.result.summary.todos ?? [],
       }
     : null;
   const generating = stream.running;
@@ -1253,13 +1263,16 @@ function ConsultContent() {
         imageUrls,
       });
       if (terminal) {
-        const flagged = terminal.summary.billing
+        const billing = terminal.summary.billing ?? [];
+        const prescription = terminal.summary.prescription ?? [];
+        const todos = terminal.summary.todos ?? [];
+        const flagged = billing
           .filter((b) => b.flagged)
           .reduce((a, b) => a + b.price, 0);
         flashToast(
           flagged > 0
-            ? `Extracted · ${terminal.summary.billing.length} billing items · RM ${flagged} recoverable`
-            : `Extracted · SOAP + ${terminal.summary.prescription.length} rx + ${terminal.summary.todos.length} todos`,
+            ? `Extracted · ${billing.length} billing items · RM ${flagged} recoverable`
+            : `Extracted · SOAP + ${prescription.length} rx + ${todos.length} todos`,
         );
       }
     } catch (err) {
