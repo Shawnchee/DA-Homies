@@ -245,7 +245,7 @@ function Hero({
         >
           {CLINIC.name} runs a five-agent Haiku 4.5 fan-out for each consult, with
           Tavily wired into prescription and billing for live drug-recall and pricing
-          checks. A Sonnet 4.6 orchestrator synthesizes two audiences — the doctor's
+          checks. A Sonnet 4.6 orchestrator synthesizes two audiences — the doctor&apos;s
           SOAP card, and the friendly Telegram message your owner reads.
         </div>
       </div>

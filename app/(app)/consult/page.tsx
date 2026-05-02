@@ -752,6 +752,8 @@ function ConsultContent() {
   type Attachment = { file: File; previewUrl: string };
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [telegramChatId, setTelegramChatId] = useState(patient?.owner_telegram || "");
+  const [savedVisitId, setSavedVisitId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Derive the existing UI shape from the orchestrator's summary so the
@@ -759,14 +761,15 @@ function ConsultContent() {
   // pipeline produces `summary.doctorSummary.soap`, `summary.prescription`,
   // `summary.billing`, `summary.todos` — the existing card components only
   // ever wanted these four fields.
-  const output: ConsultOutput | null = stream.result
-    ? {
-        soap: stream.result.summary.doctorSummary.soap,
-        prescription: stream.result.summary.prescription,
-        billing: stream.result.summary.billing,
-        todos: stream.result.summary.todos,
-      }
-    : null;
+  const output: ConsultOutput | null = useMemo(() => {
+    if (!stream.result) return null;
+    return {
+      soap: stream.result.summary.doctorSummary.soap,
+      prescription: stream.result.summary.prescription,
+      billing: stream.result.summary.billing,
+      todos: stream.result.summary.todos,
+    };
+  }, [stream.result]);
   const generating = stream.running;
   const billTotal = useMemo(
     () => (output ? output.billing.reduce((a, b) => a + b.price, 0) : 0),
@@ -1467,16 +1470,19 @@ function ConsultContent() {
                 icon={Icon.check(14)}
                 onClick={async () => {
                   try {
-                    await api.createVisit({
+                    const { visit } = await api.createVisit({
                       patientId: patient.id,
+                      patientName: patient.name,
+                      telegramChatId,
                       rawNotes: notes,
                       soap: output.soap,
                       prescription: output.prescription,
                       billing: output.billing,
                       todos: output.todos,
                     });
+                    setSavedVisitId(visit.id);
                     flashToast("Visit saved successfully!");
-                  } catch (err) {
+                  } catch {
                     flashToast("Failed to save visit");
                   }
                 }}
@@ -1694,7 +1700,14 @@ function ConsultContent() {
           <div style={{ fontSize: 13, color: C.muted, marginBottom: 12 }}>
             Review the draft, confirm the chat ID, deliver via Telegram. Saves the chat ID to the patient record on success.
           </div>
-          <SendPanel result={stream.result} patientId={patient.id} />
+          <SendPanel 
+            result={stream.result} 
+            patientId={patient.id} 
+            patientName={patient.name}
+            chatId={telegramChatId}
+            onChatIdChange={setTelegramChatId}
+            visitIdOverride={savedVisitId}
+          />
         </div>
       )}
     </div>

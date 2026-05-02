@@ -61,6 +61,7 @@ export function rowToPatient(r: PatientRow): Patient {
     tagColor: (display?.tagColor as TagColor) ?? "green",
     reason: display?.reason ?? "",
     brief: briefByName.get(r.name) ?? EMPTY_BRIEF,
+    owner_telegram: r.owner_telegram ?? undefined,
   };
 }
 

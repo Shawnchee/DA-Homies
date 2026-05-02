@@ -24,21 +24,20 @@ type SendStatus =
 export function SendPanel({
   result,
   patientId,
-  initialChatId = "",
+  patientName,
+  chatId,
+  onChatIdChange,
+  visitIdOverride,
   emptyHint = "Run the pipeline first — the doctor review-and-send panel appears once the orchestrator emits the draft.",
 }: {
   result: SessionCaptureResult | null;
-  /**
-   * Real patient UUID to pass to the telegram-send route. The route
-   * uses it to back-write owner_telegram on first successful send.
-   */
   patientId: string;
-  /** Optional prefilled chat ID — typically patient.owner_telegram. */
-  initialChatId?: string;
-  /** Override copy for the empty-state hint. */
+  patientName: string;
+  chatId: string;
+  onChatIdChange: (v: string) => void;
+  visitIdOverride?: string | null;
   emptyHint?: string;
 }) {
-  const [chatId, setChatId] = useState(initialChatId);
   const [bodyDraft, setBodyDraft] = useState("");
   const [aftercareDraft, setAftercareDraft] = useState("");
   const [status, setStatus] = useState<SendStatus>({ kind: "idle" });
@@ -111,7 +110,10 @@ export function SendPanel({
           body: bodyDraft,
           aftercare: aftercareLines,
           patientId,
-          visitId: result?.visitId,
+          patientName,
+          visitId: visitIdOverride || result?.visitId,
+          status: "monitor", // default for new followups
+          recommendedAction: "Monitor for 48h", 
         }),
       });
       const json = (await res.json().catch(() => ({}))) as {
@@ -214,7 +216,7 @@ export function SendPanel({
           <input
             type="text"
             value={chatId}
-            onChange={(e) => setChatId(e.target.value)}
+            onChange={(e) => onChatIdChange(e.target.value)}
             disabled={sending}
             placeholder="123456789 or @username"
             style={{
@@ -225,9 +227,7 @@ export function SendPanel({
             }}
           />
           <div style={{ fontSize: 11, color: C.hint, marginTop: 4 }}>
-            {initialChatId
-              ? "Prefilled from patient record. Edit to send to a different chat."
-              : "Ask the owner once — this saves to the patient record on success."}
+            Ask the owner once — this saves to the patient record on success.
           </div>
         </div>
         <button
