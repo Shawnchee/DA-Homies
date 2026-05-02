@@ -80,15 +80,15 @@ jobs:
 ## 4. Continuous Operations (Schedulers / Cron Jobs)
 AI platforms require continuous background maintenance.
 
-### A. 7:00 AM Cache Warmer (Pre-fetching Briefs)
-*   **Goal:** Pre-generate all AI `/api/brief` summaries for patients coming in that day so the dashboard loads instantly for doctors at 8:00 AM.
-*   **How to do it:** Use Vercel Cron. Create a file `app/api/cron/warm-cache/route.ts` that loops through today's appointments and calls the AI logic. Add this to your `vercel.json`:
-    ```json
-    {
-      "crons": [{ "path": "/api/cron/warm-cache", "schedule": "0 7 * * *" }]
-    }
-    ```
-
-### B. 2:00 AM Memory Consolidation (The Clinic Brain)
-*   **Goal:** Synthesize the messy `corrections` and `visits` tables into clean "Clinic SOPs" and save them to the LangGraph `store` table.
-*   **How to do it:** Create another Vercel Cron route (`/api/cron/consolidate-memory`) running at `0 2 * * *`. This route queries Supabase, passes the data to Claude to synthesize into generalized rules, and pushes the clean rules to the Python sidecar's memory store.
+### A. 2:00 AM Memory Consolidation (The Clinic Brain)
+*   **Goal:** Synthesize messy `corrections` and `visits` into clean "Clinic SOPs" and "Clinical Trends".
+*   **Architecture:** Headless GitHub Action (Scheduled).
+*   **How it works:** 
+    1.  A GitHub Action (`.github/workflows/clinic-brain-sync.yml`) wakes up daily at 2:00 AM.
+    2.  It runs a standalone CLI script `agent/consolidate.py`.
+    3.  The script performs **Incremental Consolidation** by checking the `updated_at` timestamp in the LangGraph `store` (the "High Watermark").
+    4.  Only new corrections since the last sync are processed, preventing duplicates and respecting "Discarded" rules.
+*   **Setup:**
+    1. Add `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`, `SUPABASE_DB_URL`, and `CLINIC_ID` to **GitHub Repo Secrets**.
+    2. The workflow installs Python dependencies from `agent/requirements.txt` and runs the script.
+    3. Monitor progress in the **Actions** tab of your GitHub repository.
