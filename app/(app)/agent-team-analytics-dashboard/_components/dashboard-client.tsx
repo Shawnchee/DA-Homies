@@ -68,6 +68,10 @@ const DEMO_FIXTURES: { id: string; label: string; notes: string; transcript: str
 export default function AgentDashboardClient() {
   const [fixture, setFixture] = useState<string>(DEMO_FIXTURES[0].id);
   const stream = useCaptureStream();
+  const [chatId, setChatId] = useState("");
+
+  const currentFixture = DEMO_FIXTURES.find((f) => f.id === fixture)!;
+  const patientName = currentFixture.label.split(" — ")[0];
 
   async function runPipeline() {
     const f = DEMO_FIXTURES.find((x) => x.id === fixture)!;
@@ -173,7 +177,13 @@ export default function AgentDashboardClient() {
         title="Review & send to owner"
         subtitle="Doctor stays in control — confirm the chat ID, edit the message if needed, then deliver via Telegram. Saves the chat ID to the patient record on success."
       >
-        <SendPanel result={stream.result} patientId={fixture} />
+        <SendPanel 
+          result={stream.result} 
+          patientId={fixture} 
+          patientName={patientName}
+          chatId={chatId}
+          onChatIdChange={setChatId}
+        />
       </Section>
     </main>
   );

@@ -24,6 +24,18 @@ export async function postJSON<Req, Res>(url: string, body: Req): Promise<Res> {
   return resp.json();
 }
 
+export async function postForm<Res>(url: string, body: FormData): Promise<Res> {
+  const resp = await fetch(url, {
+    method: "POST",
+    body,
+  });
+  if (!resp.ok) {
+    const error = await resp.text();
+    throw new Error(error || `POST ${url} failed with status ${resp.status}`);
+  }
+  return resp.json();
+}
+
 /** 
  * Multipart upload of one or more images to a Supabase Storage bucket. 
  * Matches the interface expected by app/(app)/consult/page.tsx.

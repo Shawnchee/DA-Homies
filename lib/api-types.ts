@@ -13,6 +13,10 @@ import type {
   DiagnosisRow,
   CorrectionRow,
   Differential,
+  SoapNote,
+  PrescriptionItem,
+  BillingItem,
+  TodoItem,
 } from "./types";
 
 // ─── /api/patients ──────────────────────────────────────────────────────────
@@ -291,14 +295,13 @@ export interface CreateVisitRequest {
   patientName?: string;
   telegramChatId?: string;
   rawNotes: string;
-  soap: Record<string, unknown>; // Complex structured object from GLM
-  prescription: Record<string, unknown>;
-  billing: Record<string, unknown>;
-  todos: Record<string, unknown>;
+  soap: SoapNote;
+  prescription: PrescriptionItem[];
+  billing: BillingItem[];
+  todos: TodoItem[];
 }
 export type CreateVisitResponse = {
-  ok: true;
-  visitId: string;
+  visit: { id: string };
 };
 export function parseCreateVisitRequest(raw: unknown): CreateVisitRequest {
   const r = raw as Partial<CreateVisitRequest>;
@@ -308,22 +311,22 @@ export function parseCreateVisitRequest(raw: unknown): CreateVisitRequest {
   if (typeof r.rawNotes !== "string") throw new ApiError(400, "rawNotes required");
   if (!r.soap || typeof r.soap !== "object" || Array.isArray(r.soap))
     throw new ApiError(400, "soap must be an object");
-  if (!r.prescription || typeof r.prescription !== "object" || Array.isArray(r.prescription))
-    throw new ApiError(400, "prescription must be an object");
-  if (!r.billing || typeof r.billing !== "object" || Array.isArray(r.billing))
-    throw new ApiError(400, "billing must be an object");
-  if (!r.todos || typeof r.todos !== "object" || Array.isArray(r.todos))
-    throw new ApiError(400, "todos must be an object");
+  if (!r.prescription || !Array.isArray(r.prescription))
+    throw new ApiError(400, "prescription must be an array");
+  if (!r.billing || !Array.isArray(r.billing))
+    throw new ApiError(400, "billing must be an array");
+  if (!r.todos || !Array.isArray(r.todos))
+    throw new ApiError(400, "todos must be an array");
 
   return {
     patientId: r.patientId,
     patientName: r.patientName,
     telegramChatId: r.telegramChatId,
     rawNotes: r.rawNotes,
-    soap: r.soap as Record<string, unknown>,
-    prescription: r.prescription as Record<string, unknown>,
-    billing: r.billing as Record<string, unknown>,
-    todos: r.todos as Record<string, unknown>,
+    soap: r.soap as SoapNote,
+    prescription: r.prescription as PrescriptionItem[],
+    billing: r.billing as BillingItem[],
+    todos: r.todos as TodoItem[],
   };
 }
 
