@@ -74,6 +74,21 @@ export const hasDeepgram = () => Boolean(ENV.deepgram.apiKey);
 export const hasTavily = () => Boolean(ENV.tavily.apiKey);
 export const hasSupabase = () =>
   Boolean(ENV.supabase.url && ENV.supabase.anonKey);
+
+/**
+ * Client-safe Supabase check.
+ *
+ * `hasSupabase()` reads `ENV.supabase.url` which uses dynamic
+ * `process.env[k]` access — Next.js can only inline `NEXT_PUBLIC_*`
+ * env vars when accessed via *literal* property syntax at build time,
+ * so the dynamic helper always returns false in client bundles. Use
+ * this helper instead from `"use client"` components.
+ */
+export const hasSupabaseClient = () =>
+  Boolean(
+    process.env.NEXT_PUBLIC_SUPABASE_URL &&
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
 export const hasSupabaseAdmin = () =>
   hasSupabase() && Boolean(ENV.supabase.serviceRoleKey);
 export const hasTelegram = () => Boolean(ENV.telegram.botToken);

@@ -1023,9 +1023,15 @@ function ConsultContent() {
       // start() — reading stream.result here is unsafe (closure-captured
       // pre-reset value). The hook also writes the same result to state
       // for reactive rendering.
+      // Send the doctor's typed shorthand as `notes` (what the
+      // text/billing/prescription agents read) and the Deepgram
+      // transcript as `transcript` (what the voice agent reads). Bundling
+      // them broke the voice agent (it saw "no transcript provided")
+      // and confused the prescription agent.
       const terminal = await stream.start({
         patientId: patient.id,
-        notes: combinedNotes,
+        notes: notes.trim() || conversation.trim(),
+        transcript: conversation.trim() || undefined,
         imageUrls,
       });
       if (terminal) {

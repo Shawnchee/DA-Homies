@@ -13,7 +13,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { CLINIC } from "@/lib/clinic";
-import { hasSupabase } from "@/lib/env";
+import { hasSupabaseClient } from "@/lib/env";
 import { BORDER_HAIRLINE, C, FONT_MONO, SHADOW_CARD } from "@/lib/tokens";
 import type { SessionCaptureResult } from "@/lib/agents/sub-agents/types";
 import { useStore } from "@/components/app-shell/store";
@@ -71,7 +71,7 @@ export function SendPanel({
   const [resetNotice, setResetNotice] = useState<string | null>(null);
   const lastResultId = useRef<string | null>(null);
   const { closeConsultAndGeneratePassport } = useStore();
-  const passportEnabled = hasSupabase();
+  const passportEnabled = hasSupabaseClient();
 
   // Effect-driven reset (avoids the set-state-during-render anti-pattern).
   // Fires only when result.visitId changes — preserves mid-edit work
