@@ -21,6 +21,10 @@ import type {
   PassportUpsertResponse,
   CreateVisitRequest,
   CreateVisitResponse,
+  UpdateFollowupRequest,
+  UpdateFollowupResponse,
+  GetKnowledgeResponse,
+  UpdateKnowledgeRequest,
 } from "./api-types";
 
 export const api = {
@@ -96,6 +100,8 @@ export const api = {
       `/api/brief?patient_id=${encodeURIComponent(patientId)}`,
     ),
   getFollowups: () => getJSON<GetFollowupsResponse>("/api/followups"),
+  updateFollowup: (req: UpdateFollowupRequest) =>
+    postJSON<UpdateFollowupRequest, UpdateFollowupResponse>("/api/followups", req),
   getMetrics: () => getJSON<GetMetricsResponse>("/api/metrics"),
   getAnalytics: () => getJSON<GetAnalyticsResponse>("/api/analytics"),
   consult: (req: ConsultRequest) =>
@@ -140,6 +146,12 @@ export const api = {
       "/api/passports",
       req,
     ),
+  getKnowledge: () => getJSON<GetKnowledgeResponse>("/api/knowledge"),
+  updateKnowledge: (req: UpdateKnowledgeRequest) =>
+    postJSON<UpdateKnowledgeRequest, { ok: boolean }>("/api/knowledge", req),
+  // NOTE: transcribe is imported from ./api-base and re-exported below
+  // (line ~165). Removed the inline duplicate that main introduced —
+  // it would have shadowed the imported version and duplicated the key.
 
   /** Multipart upload of one or more images to a Supabase Storage bucket. */
   uploadPhotos,

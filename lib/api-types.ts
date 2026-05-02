@@ -347,6 +347,18 @@ export type GetFollowupsResponse = {
   followups: FollowUp[];
   resolvedCount: number;
 };
+export interface UpdateFollowupRequest {
+  id: string;
+  status?: string;
+  draft?: string;
+}
+export type UpdateFollowupResponse = { ok: true };
+export function parseUpdateFollowupRequest(raw: unknown): UpdateFollowupRequest {
+  const r = raw as Partial<UpdateFollowupRequest>;
+  if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
+  if (typeof r.id !== "string" || !r.id) throw new ApiError(400, "id required");
+  return { id: r.id, status: r.status, draft: r.draft };
+}
 
 // ─── /api/metrics ───────────────────────────────────────────────────────────
 export type GetMetricsResponse = { metrics: MetricCardData[] };
@@ -400,19 +412,21 @@ export function parseCreateVisitRequest(raw: unknown): CreateVisitRequest {
 
 // ─── /api/corrections ───────────────────────────────────────────────────────
 export interface CorrectionRequest {
-  feature: "triage" | "billing" | "prescription" | "brief";
+  feature: "triage" | "billing" | "prescription" | "brief" | "soap" | "todos";
   visitId?: string;
   followupId?: string;
   glmOutput: string;
+  glmTriage?: string;
   rejectionReason?: string;
   doctorCorrection?: string;
+  doctorTriage?: string;
   approved: boolean;
 }
 export type CorrectionResponse = { ok: true; id: string };
 export function parseCorrectionRequest(raw: unknown): CorrectionRequest {
   const r = raw as Partial<CorrectionRequest>;
   if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
-  const features = ["triage", "billing", "prescription", "brief"] as const;
+  const features = ["triage", "billing", "prescription", "brief", "soap", "todos"] as const;
   if (!features.includes(r.feature as (typeof features)[number]))
     throw new ApiError(400, "feature must be one of: " + features.join(", "));
   if (typeof r.glmOutput !== "string")
@@ -424,10 +438,42 @@ export function parseCorrectionRequest(raw: unknown): CorrectionRequest {
     visitId: r.visitId,
     followupId: r.followupId,
     glmOutput: r.glmOutput,
+    glmTriage: r.glmTriage,
     rejectionReason: r.rejectionReason,
     doctorCorrection: r.doctorCorrection,
+    doctorTriage: r.doctorTriage,
     approved: r.approved,
   };
+}
+
+// ─── /api/knowledge ─────────────────────────────────────────────────────────
+export interface KnowledgeRule {
+  action: string;
+  condition?: string;
+  added_date: string;
+  last_reinforced_at: string;
+  pinned: boolean;
+  verified: boolean;
+}
+export interface KnowledgeTrend {
+  label: string; // e.g. "Common Diagnoses"
+  summary: string;
+  is_persisting: boolean;
+  last_seen: string;
+}
+export type GetKnowledgeResponse = {
+  rules: KnowledgeRule[];
+  trends: KnowledgeTrend[];
+  updatedAt: string;
+};
+export interface UpdateKnowledgeRequest {
+  rules: KnowledgeRule[];
+}
+export function parseUpdateKnowledgeRequest(raw: unknown): UpdateKnowledgeRequest {
+  const r = raw as Partial<UpdateKnowledgeRequest>;
+  if (!r || typeof r !== "object") throw new ApiError(400, "body must be object");
+  if (!Array.isArray(r.rules)) throw new ApiError(400, "rules must be an array");
+  return { rules: r.rules as KnowledgeRule[] };
 }
 
 // ─── errors ─────────────────────────────────────────────────────────────────

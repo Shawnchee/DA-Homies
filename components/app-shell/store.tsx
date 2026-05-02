@@ -73,7 +73,8 @@ interface StoreCtx {
     options?: { bodyDraft?: string; aftercare?: string[] },
   ) => Promise<{ passportUrl: string; messageId: number }>;
   approveClear: (f: FollowUp) => void;
-  changeFollowUpLevel: (f: FollowUp, level: FollowUpLevel) => void;
+  changeFollowUpLevel: (f: FollowUp, level: FollowUpLevel, reason?: string) => void;
+  updateFollowupDraft: (f: FollowUp, draft: string) => void;
 }
 
 /** Minimum shape we read off a Realtime `followups` row payload. */
@@ -293,15 +294,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         body,
         patientId: cur.patientId,
         patientName: cur.patient,
+        visitId: cur.visitId,
+        status: "resolved",
       });
       // Log the doctor's approval/correction after a successful delivery.
-      const isCorrected = body !== cur.draft;
+      const isCorrected = body !== (cur.draft ?? "").trim();
       void api
         .correction({
           feature: "triage",
           followupId: cur.id,
-          glmOutput: cur.level,
+          visitId: cur.visitId,
+          glmOutput: cur.originalAiDraft ?? cur.draft ?? "",
+          glmTriage: cur.botLevel,
           doctorCorrection: isCorrected ? body : undefined,
+          doctorTriage: cur.level,
           approved: true,
         })
         .catch(() => {});
@@ -392,6 +398,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [patients, flashToast],
   );
   const approveClear = useCallback((f: FollowUp) => {
+    void api.updateFollowup({ id: f.id, status: "clear" }).catch(() => {});
     setFollowups((fs) => fs.filter((x) => x.id !== f.id));
     setResolvedCount((c) => c + 1);
     flashToast(`${f.patient} categorized as clear`);
@@ -399,23 +406,74 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void api.correction({
       feature: "triage",
       followupId: f.id,
-      glmOutput: "clear",
+      visitId: f.visitId,
+      glmOutput: f.originalAiDraft ?? f.draft ?? "",
+      glmTriage: f.botLevel,
+      doctorTriage: "clear",
       approved: true,
     }).catch(() => {});
   }, [flashToast]);
 
-  const changeFollowUpLevel = useCallback((f: FollowUp, level: FollowUpLevel) => {
-    setFollowups((fs) => fs.map((x) => x.id === f.id ? { ...x, level } : x));
-    flashToast(`${f.patient} moved to ${level}`);
-    
-    void api.correction({
-      feature: "triage",
-      followupId: f.id,
-      glmOutput: f.level,
-      doctorCorrection: level,
-      approved: false,
-    }).catch(() => {});
-  }, [flashToast]);
+  const changeFollowUpLevel = useCallback(
+    async (f: FollowUp, level: FollowUpLevel, reason?: string) => {
+      const prevLevel = f.level;
+      void api.updateFollowup({ id: f.id, status: level }).catch(() => {});
+      setFollowups((fs) =>
+        fs.map((x) => (x.id === f.id ? { ...x, level } : x)),
+      );
+      setEscalation((prev) => (prev?.id === f.id ? { ...prev, level } : prev));
+
+      // If monitor -> escalate, ask LLM to generate a new draft for the escalation
+      if (level === "escalate" && prevLevel === "monitor") {
+        try {
+          const res = await api.triage({
+            followupId: f.id,
+            message: `[MANUAL DOCTOR ESCALATION] ${f.ownerMessage}`,
+          });
+          const newDraft = res.ownerReplyDraft;
+          void api
+            .updateFollowup({ id: f.id, draft: newDraft })
+            .catch(() => {});
+          setFollowups((fs) =>
+            fs.map((x) =>
+              x.id === f.id
+                ? { ...x, draft: newDraft, originalAiDraft: newDraft }
+                : x,
+            ),
+          );
+          setEscalation((prev) =>
+            prev?.id === f.id
+              ? { ...prev, draft: newDraft, originalAiDraft: newDraft }
+              : prev,
+          );
+          flashToast(`New escalation draft generated`);
+        } catch (err) {
+          console.error("failed to re-generate draft", err);
+        }
+      }
+
+      flashToast(`${f.patient} moved to ${level}`);
+
+      void api
+        .correction({
+          feature: "triage",
+          followupId: f.id,
+          visitId: f.visitId,
+          glmOutput: f.originalAiDraft ?? f.draft ?? "",
+          glmTriage: f.botLevel,
+          doctorTriage: level,
+          rejectionReason: reason,
+          approved: true,
+        })
+        .catch(() => {});
+    },
+    [flashToast],
+  );
+
+  const updateFollowupDraft = useCallback((f: FollowUp, draft: string) => {
+    void api.updateFollowup({ id: f.id, draft }).catch(() => {});
+    setFollowups((fs) => fs.map((x) => x.id === f.id ? { ...x, draft } : x));
+  }, []);
 
   return (
     <Ctx.Provider
@@ -444,6 +502,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         deletePatient,
         approveClear,
         changeFollowUpLevel,
+        updateFollowupDraft,
       }}
     >
       {children}

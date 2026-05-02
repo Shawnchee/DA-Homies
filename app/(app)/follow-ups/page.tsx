@@ -158,7 +158,6 @@ function EscalationCard({
   index: number;
 }) {
   const [hover, setHover] = useState(false);
-  const { changeFollowUpLevel } = useStore();
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -236,12 +235,6 @@ function EscalationCard({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ fontSize: 12, color: C.muted }}>{f.owner}</div>
         <div style={{ flex: 1 }} />
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "monitor")}>
-          Monitor
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "clear")}>
-          Recovered
-        </Button>
         <Button size="sm" variant="primary" onClick={onReview}>
           Review
         </Button>
@@ -250,9 +243,16 @@ function EscalationCard({
   );
 }
 
-function MonitorCard({ f, index }: { f: FollowUp; index: number }) {
+function MonitorCard({
+  f,
+  onReview,
+  index,
+}: {
+  f: FollowUp;
+  onReview: () => void;
+  index: number;
+}) {
   const [hover, setHover] = useState(false);
-  const { changeFollowUpLevel } = useStore();
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -342,20 +342,24 @@ function MonitorCard({ f, index }: { f: FollowUp; index: number }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ fontSize: 12, color: C.muted }}>{f.owner}</div>
         <div style={{ flex: 1 }} />
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "escalate")}>
-          Escalate
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "clear")}>
-          Recovered
+        <Button size="sm" variant="primary" onClick={onReview}>
+          Review
         </Button>
       </div>
     </div>
   );
 }
 
-function ClearCard({ f, index }: { f: FollowUp; index: number }) {
+function ClearCard({
+  f,
+  onReview,
+  index,
+}: {
+  f: FollowUp;
+  onReview: () => void;
+  index: number;
+}) {
   const [hover, setHover] = useState(false);
-  const { approveClear, changeFollowUpLevel } = useStore();
 
   return (
     <div
@@ -434,14 +438,8 @@ function ClearCard({ f, index }: { f: FollowUp; index: number }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ fontSize: 12, color: C.muted }}>Pending Approval · {f.owner}</div>
         <div style={{ flex: 1 }} />
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "escalate")}>
-          Escalate
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => changeFollowUpLevel(f, "monitor")}>
-          Monitor
-        </Button>
-        <Button size="sm" variant="primary" onClick={() => approveClear(f)}>
-          Approve
+        <Button size="sm" variant="primary" onClick={onReview}>
+          Review
         </Button>
       </div>
     </div>
@@ -593,7 +591,12 @@ export default function FollowUpsPage() {
           ) : (
             <div style={{ display: "grid", gap: 12 }}>
               {monitors.map((f, i) => (
-                <MonitorCard key={f.id} f={f} index={i} />
+                <MonitorCard
+                  key={f.id}
+                  f={f}
+                  index={i}
+                  onReview={() => openEscalation(f)}
+                />
               ))}
             </div>
           )}
@@ -621,7 +624,12 @@ export default function FollowUpsPage() {
           {clears.length > 0 && (
             <div style={{ display: "grid", gap: 12 }}>
               {clears.map((f, i) => (
-                <ClearCard key={f.id} f={f} index={i} />
+                <ClearCard
+                  key={f.id}
+                  f={f}
+                  index={i}
+                  onReview={() => openEscalation(f)}
+                />
               ))}
             </div>
           )}

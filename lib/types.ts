@@ -80,6 +80,7 @@ export type ConversationTurn =
 export interface FollowUp {
   id: string;
   level: FollowUpLevel;
+  botLevel?: FollowUpLevel;
   patient: string;
   procedure: string;
   owner: string;
@@ -88,6 +89,8 @@ export interface FollowUp {
   differentials?: Differential[];
   recommendation: string;
   draft?: string;
+  /** The original AI-generated reply, preserved even if the doctor edits `draft`. */
+  originalAiDraft?: string;
   tsLabel?: string;
   conversation?: ConversationTurn[];
   toolCallCount?: number;
@@ -95,6 +98,8 @@ export interface FollowUp {
   chatId?: string;
   /** Patient row id — required by /api/consult/telegram-send for owner_telegram backwrite. */
   patientId?: string;
+  /** Visit row id — required for audit/corrections. */
+  visitId?: string;
 }
 
 export interface MetricCardData {
@@ -109,6 +114,7 @@ export interface BillingItem {
   price: number;
   flagged: boolean;
   note: string;
+  selected?: boolean;
 }
 
 export interface PrescriptionItem {
