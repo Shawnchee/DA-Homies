@@ -18,9 +18,9 @@ All five required submission artifacts are checked into this repository for easy
 | # | Deliverable | File | Description |
 |---|---|---|---|
 | 1 | 💾 **Code Repository** | <https://github.com/Shawnchee/DA-Homies> | Full source — Next.js 16 + Claude (Haiku 4.5 / Sonnet 4.6) + Supabase + grammY Telegram bot. Live build at <https://consilium-tau.vercel.app>. |
-| 2 | 🧪 **Refined QA Testing Document** | [`Refined QATD.pdf`](./Refined%20QATD.pdf) — source: [`refined_qa.md`](./refined_qa.md) | Updated test strategy, expanded test matrix, coverage, defect tracking and regression plan for the final round. |
-| 3 | 🚀 **Deployment Plan** | [`Deployment Plan.pdf`](./Deployment%20Plan.pdf) — source: [`cicd.md`](./cicd.md) | Architecture, environments, CI/CD (Vercel + GitHub Actions AI-eval + Supabase migrations + clinic-brain-sync cron), secret management, step-by-step deploy, monitoring, rollback, risks. |
-| 4 | 📈 **Business Proposal** | [`UMHackathon2026 Business Proposal (DAHOMIES).pdf`](./UMHackathon2026%20Business%20Proposal%20%28DAHOMIES%29.pdf) — source: [`business_proposal.md`](./business_proposal.md) | Market sizing, pricing tiers, go-to-market motion, unit economics, and financial model for the developed product. |
+| 2 | 🧪 **Refined QA Testing Document** | [`UMHakcathon2026 Refined Testing Analysis Documentation (Final Round) DaHomies.pdf`](./UMHakcathon2026%20Refined%20Testing%20Analysis%20Documentation%20%28Final%20Round%29%20DaHomies.pdf) | Updated test strategy, expanded test matrix, coverage, defect tracking and regression plan for the final round. |
+| 3 | 🚀 **Deployment Plan** | [`Deployment Plan.pdf`](./Deployment%20Plan.pdf) | Architecture, environments, CI/CD (Vercel + GitHub Actions AI-eval + Supabase migrations + clinic-brain-sync cron), secret management, step-by-step deploy, monitoring, rollback, risks. |
+| 4 | 📈 **Business Proposal** | [`UMHackathon2026 Business Proposal (DAHOMIES).pdf`](./UMHackathon2026%20Business%20Proposal%20%28DAHOMIES%29.pdf) | Market sizing, pricing tiers, go-to-market motion, unit economics, and financial model for the developed product. |
 | 5 | 🎤 **Final Round Pitch Deck** | [`Consilium Pitch Deck FINAL LATEST.pdf`](./Consilium%20Pitch%20Deck%20FINAL%20LATEST.pdf) | Final-round presentation slides covering problem, solution, decision layer, demo highlights, traction, and ask. |
 
 📁 **Full submission Drive folder:** <https://drive.google.com/drive/u/0/folders/160O04WT0iuOfyCdfYf1EiLhesZAOUw5k>
