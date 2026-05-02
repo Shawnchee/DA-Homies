@@ -1,4 +1,4 @@
-import { getJSON, postJSON, uploadPhotos } from "./api-base";
+import { getJSON, postJSON, transcribe, uploadPhotos } from "./api-base";
 import type {
   GetPatientsResponse,
   CreatePatientRequest,
@@ -65,4 +65,6 @@ export const api = {
 
   /** Multipart upload of one or more images to a Supabase Storage bucket. */
   uploadPhotos,
+  /** Voice-to-text via Deepgram (used by the consult mic button). */
+  transcribe,
 };

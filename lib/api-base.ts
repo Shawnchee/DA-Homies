@@ -24,12 +24,22 @@ export async function postJSON<Req, Res>(url: string, body: Req): Promise<Res> {
   return resp.json();
 }
 
-/** Multipart upload of one or more images to a Supabase Storage bucket. */
-export async function uploadPhotos(files: File[]): Promise<string[]> {
+/**
+ * Multipart upload of one or more images. Returns the route's full
+ * response so callers can either use the public URL (Supabase configured)
+ * or fall back to the inline base64 + mediaType.
+ */
+export async function uploadPhotos(
+  files: File[],
+  bucket: "consult-photos" | "owner-photos" = "consult-photos",
+): Promise<{
+  uploads: { url?: string; base64?: string; mediaType: string }[];
+}> {
   const formData = new FormData();
   files.forEach((f) => formData.append("files", f));
+  formData.append("bucket", bucket);
 
-  const resp = await fetch("/api/storage/upload", {
+  const resp = await fetch("/api/upload", {
     method: "POST",
     body: formData,
   });
@@ -39,6 +49,22 @@ export async function uploadPhotos(files: File[]): Promise<string[]> {
     throw new Error(error || "Upload failed");
   }
 
-  const { urls } = await resp.json();
-  return urls;
+  return resp.json();
+}
+
+/** POST a recorded audio Blob to /api/transcribe (Deepgram). */
+export async function transcribe(
+  audio: Blob,
+): Promise<{ transcript: string; confidence: number | null }> {
+  const formData = new FormData();
+  formData.append("audio", audio);
+  const resp = await fetch("/api/transcribe", {
+    method: "POST",
+    body: formData,
+  });
+  if (!resp.ok) {
+    const error = await resp.text();
+    throw new Error(error || "Transcribe failed");
+  }
+  return resp.json();
 }
