@@ -306,15 +306,24 @@ export function parseCreateVisitRequest(raw: unknown): CreateVisitRequest {
   if (typeof r.patientId !== "string" || !r.patientId)
     throw new ApiError(400, "patientId required");
   if (typeof r.rawNotes !== "string") throw new ApiError(400, "rawNotes required");
+  if (!r.soap || typeof r.soap !== "object" || Array.isArray(r.soap))
+    throw new ApiError(400, "soap must be an object");
+  if (!r.prescription || typeof r.prescription !== "object" || Array.isArray(r.prescription))
+    throw new ApiError(400, "prescription must be an object");
+  if (!r.billing || typeof r.billing !== "object" || Array.isArray(r.billing))
+    throw new ApiError(400, "billing must be an object");
+  if (!r.todos || typeof r.todos !== "object" || Array.isArray(r.todos))
+    throw new ApiError(400, "todos must be an object");
+
   return {
     patientId: r.patientId,
     patientName: r.patientName,
     telegramChatId: r.telegramChatId,
     rawNotes: r.rawNotes,
-    soap: r.soap,
-    prescription: r.prescription,
-    billing: r.billing,
-    todos: r.todos,
+    soap: r.soap as Record<string, unknown>,
+    prescription: r.prescription as Record<string, unknown>,
+    billing: r.billing as Record<string, unknown>,
+    todos: r.todos as Record<string, unknown>,
   };
 }
 
