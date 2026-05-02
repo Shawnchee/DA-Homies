@@ -692,6 +692,46 @@ function ExampleDropdown({ onPick }: { onPick: (text: string, label: string) => 
 // ─────────────────────────────────────────────────────────────────────
 // Page
 // ─────────────────────────────────────────────────────────────────────
+function FieldHeader({
+  label,
+  hint,
+  count,
+}: {
+  label: string;
+  hint: string;
+  count: number;
+}) {
+  return (
+    <div
+      style={{
+        padding: "10px 22px 8px",
+        background: C.bgAlt,
+        borderTop: `1px solid ${C.borderSoft}`,
+        display: "flex",
+        alignItems: "baseline",
+        gap: 12,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10.5,
+          fontWeight: 700,
+          letterSpacing: 1.4,
+          textTransform: "uppercase",
+          color: C.muted,
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ fontSize: 11.5, color: C.hint }}>· {hint}</div>
+      <div style={{ flex: 1 }} />
+      <div style={{ fontSize: 11, color: C.hint, fontFamily: FONT_MONO }}>
+        {count} chars
+      </div>
+    </div>
+  );
+}
+
 function ConsultContent() {
   const params = useSearchParams();
   const pid = params.get("pid");
@@ -744,7 +784,21 @@ function ConsultContent() {
 
   const patient = localPatient ?? fetchedPatient;
 
+  // Two separate inputs that flow into the same orchestrator call:
+  //   - `conversation` is the auto-transcribed back-and-forth between vet
+  //     and owner during the visit. Mic recordings append here.
+  //   - `notes` is the doctor's structured clinical shorthand (SOAP-style
+  //     observations, plan). Typed only.
+  // Merged into one block in `combinedNotes` before sending to /api/consult.
+  const [conversation, setConversation] = useState("");
   const [notes, setNotes] = useState("");
+  const combinedNotes = [
+    conversation.trim() &&
+      `Conversation transcript:\n${conversation.trim()}`,
+    notes.trim() && `Doctor's notes:\n${notes.trim()}`,
+  ]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
   // Multi-agent stream replaces the legacy single-call /api/consult flow.
   // The pipeline visualization (ArchitectureDiagram / Timeline / TavilyFeed)
   // is opt-in via showPipeline — default off so routine consults stay calm,
@@ -793,7 +847,7 @@ function ConsultContent() {
   );
 
   const generate = async () => {
-    if (!notes.trim() || !patient) return;
+    if (!combinedNotes || !patient) return;
     try {
       // Upload any attached photos first; URLs flow into the multi-agent
       // text-agent (which validates them against the SSRF allowlist).
@@ -820,7 +874,7 @@ function ConsultContent() {
       // for reactive rendering.
       const terminal = await stream.start({
         patientId: patient.id,
-        notes,
+        notes: combinedNotes,
         imageUrls,
       });
       if (terminal) {
@@ -888,7 +942,9 @@ function ConsultContent() {
         try {
           const { transcript } = await api.transcribe(blob);
           if (transcript) {
-            setNotes((prev) => (prev ? `${prev.trim()} ${transcript}` : transcript));
+            setConversation((prev) =>
+              prev ? `${prev.trim()} ${transcript}` : transcript,
+            );
             flashToast("Transcribed · Deepgram nova-3");
           } else {
             flashToast("No speech detected");
@@ -1389,7 +1445,7 @@ function ConsultContent() {
                   letterSpacing: 0.3,
                 }}
               >
-                {notes.length} chars
+                {conversation.length + notes.length} chars
               </div>
             </div>
 
@@ -1451,26 +1507,74 @@ function ConsultContent() {
               </div>
             )}
 
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Dictate or type consultation notes…"
+            {/* Two stacked fields: live conversation transcript on top
+                (mic feeds here), structured doctor notes below. Both flow
+                into the orchestrator as a merged block (combinedNotes). */}
+            <div
               style={{
-                width: "100%",
-                minHeight: 320,
-                resize: "vertical",
-                padding: "20px 22px",
-                border: "none",
-                outline: "none",
-                fontSize: 14.5,
-                lineHeight: 1.65,
-                color: C.text,
-                fontFamily: "inherit",
-                background: "#fff",
-                display: "block",
-                boxSizing: "border-box",
+                display: "grid",
+                gridTemplateRows: "auto auto",
               }}
-            />
+            >
+              <FieldHeader
+                label="Conversation transcript"
+                hint={
+                  recording
+                    ? `Listening · ${fmtTime(recordSec)}`
+                    : transcribing
+                    ? "Transcribing…"
+                    : "Tap mic above to record vet/owner conversation"
+                }
+                count={conversation.length}
+              />
+              <textarea
+                value={conversation}
+                onChange={(e) => setConversation(e.target.value)}
+                placeholder="Voice recording transcribes here automatically. You can also type or paste."
+                style={{
+                  width: "100%",
+                  minHeight: 160,
+                  resize: "vertical",
+                  padding: "16px 22px",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: C.text,
+                  fontFamily: "inherit",
+                  background: "#fff",
+                  display: "block",
+                  boxSizing: "border-box",
+                  fontStyle: conversation ? "normal" : "italic",
+                  borderBottom: `1px solid ${C.borderSoft}`,
+                }}
+              />
+              <FieldHeader
+                label="Doctor's notes"
+                hint="SOAP-style observations, exam findings, plan"
+                count={notes.length}
+              />
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Type your clinical findings — exam, vitals, assessment, plan…"
+                style={{
+                  width: "100%",
+                  minHeight: 200,
+                  resize: "vertical",
+                  padding: "16px 22px",
+                  border: "none",
+                  outline: "none",
+                  fontSize: 14.5,
+                  lineHeight: 1.65,
+                  color: C.text,
+                  fontFamily: "inherit",
+                  background: "#fff",
+                  display: "block",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
           </Card>
 
           {/* CTA row */}
@@ -1493,8 +1597,15 @@ function ConsultContent() {
               Consilium cross-references your notes against the clinic billing
               matrix and past visits.
             </div>
-            {notes && (
-              <Button variant="ghost" size="sm" onClick={() => setNotes("")}>
+            {(conversation || notes) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setConversation("");
+                  setNotes("");
+                }}
+              >
                 Clear
               </Button>
             )}
@@ -1503,7 +1614,7 @@ function ConsultContent() {
               onClick={generate}
               icon={Icon.spark(14)}
               style={
-                !notes.trim() || generating || uploading
+                !combinedNotes || generating || uploading
                    ? { opacity: 0.45, pointerEvents: "none" }
                   : undefined
               }
@@ -1526,7 +1637,7 @@ function ConsultContent() {
                   try {
                     await api.createVisit({
                       patientId: patient.id,
-                      rawNotes: notes,
+                      rawNotes: combinedNotes,
                       soap: output.soap,
                       prescription: output.prescription,
                       billing: output.billing,
