@@ -71,7 +71,7 @@ export default function ReceptionistPage() {
     setBreed("Labrador Retriever");
     setAge("5");
     setSex("Male");
-    setOwnerName("Lim Chee Wei");
+    setOwnerName("Shawn Chee");
     setOwnerPhone("+60 13 928 4717");
     setOwnerTelegram("1697604097");
     setReason(
