@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "agent/**"   # only run when agent code changes — saves API costs
+  workflow_dispatch:   # allow manual runs from the Actions tab
 
 jobs:
   eval:
