@@ -9,13 +9,18 @@
 -- payload.
 
 -- ─── 1. Milo the patient ────────────────────────────────────────────────────
+-- created_at is forced to '2024-01-01' so Milo sorts to the TOP of the
+-- dashboard schedule (the patients route orders by created_at ascending).
+-- Without this, a freshly-inserted Milo would appear last and the demo
+-- presenter would have to scroll to find him.
 insert into patients (
   id, name, species, breed, age_years, sex,
-  owner_name, owner_phone, owner_telegram
+  owner_name, owner_phone, owner_telegram, created_at
 ) values (
   '11111111-1111-1111-1111-000000000001',
   'Milo', 'Dog', 'Miniature Schnauzer', 8, 'Male (neutered)',
-  'Aisyah Rahman', '+60 12 345 6789', null
+  'Aisyah Rahman', '+60 12 345 6789', null,
+  '2024-01-01 00:00:00+00'
 )
 on conflict (id) do update set
   name = excluded.name,
@@ -24,7 +29,8 @@ on conflict (id) do update set
   age_years = excluded.age_years,
   sex = excluded.sex,
   owner_name = excluded.owner_name,
-  owner_phone = excluded.owner_phone;
+  owner_phone = excluded.owner_phone,
+  created_at = excluded.created_at;
 
 -- ─── 2. Milo's passport (mirrors lib/passport-fixtures.ts MILO_DEMO_PAYLOAD)
 insert into passports (patient_id, share_uuid, payload) values (
