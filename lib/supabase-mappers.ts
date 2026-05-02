@@ -48,6 +48,13 @@ const displayByName = new Map(
 
 export function rowToPatient(r: PatientRow): Patient {
   const display = displayByName.get(r.name);
+  const baseBrief = briefByName.get(r.name) ?? EMPTY_BRIEF;
+  // The receptionist's "what to probe today" is the freshest signal —
+  // override the historical probe line so the doctor's dashboard shows
+  // today's chief complaint, not the by-name overlay's stale prompt.
+  const brief: Brief = r.reason_for_visit
+    ? { ...baseBrief, probe: r.reason_for_visit }
+    : baseBrief;
   return {
     id: r.id,
     name: r.name,
@@ -61,12 +68,13 @@ export function rowToPatient(r: PatientRow): Patient {
     tag: display?.tag ?? "Scheduled",
     tagColor: (display?.tagColor as TagColor) ?? "green",
     reason: r.reason_for_visit ?? display?.reason ?? "",
-    brief: briefByName.get(r.name) ?? EMPTY_BRIEF,
+    brief,
   };
 }
 
 export function briefForPatient(r: PatientRow): Brief {
-  return briefByName.get(r.name) ?? EMPTY_BRIEF;
+  const base = briefByName.get(r.name) ?? EMPTY_BRIEF;
+  return r.reason_for_visit ? { ...base, probe: r.reason_for_visit } : base;
 }
 
 // ─── follow-ups ──────────────────────────────────────────────────────────────

@@ -462,7 +462,10 @@ function PatientRow({
               gap: 12,
             }}
           >
-            <Link href="/consult" style={{ display: "inline-flex" }}>
+            <Link
+              href={`/consult?pid=${encodeURIComponent(p.id)}`}
+              style={{ display: "inline-flex" }}
+            >
               <span
                 style={{
                   fontSize: 13.5,
