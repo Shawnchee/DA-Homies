@@ -160,15 +160,72 @@ function OutputCardShell({
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// Shared edit-mode inputs — flat, hairline, matches card aesthetic
+// ─────────────────────────────────────────────────────────────────────
+const editInputStyle = {
+  width: "100%",
+  padding: "6px 8px",
+  fontSize: 13,
+  fontFamily: FONT_MONO,
+  color: C.text,
+  background: "#fff",
+  border: `1px solid ${C.border}`,
+  borderRadius: 4,
+  outline: "none",
+  boxSizing: "border-box" as const,
+};
+
+function RowDeleteButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Remove row"
+      style={{
+        width: 22,
+        height: 22,
+        display: "inline-grid",
+        placeItems: "center",
+        background: "transparent",
+        border: `1px solid ${C.border}`,
+        borderRadius: 4,
+        color: C.muted,
+        cursor: "pointer",
+        fontSize: 14,
+        lineHeight: 1,
+        padding: 0,
+        flexShrink: 0,
+      }}
+    >
+      ×
+    </button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // SOAP
 // ─────────────────────────────────────────────────────────────────────
-function SoapCard({ s }: { s: SoapNote }) {
+function SoapCard({
+  s,
+  onSave,
+}: {
+  s: SoapNote;
+  onSave: (next: SoapNote) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<SoapNote>(s);
+  useEffect(() => {
+    setDraft(s);
+    setEditing(false);
+  }, [s]);
+
   const rows: { k: "S" | "O" | "A" | "P"; v: string }[] = [
-    { k: "S", v: s.S },
-    { k: "O", v: s.O },
-    { k: "A", v: s.A },
-    { k: "P", v: s.P },
+    { k: "S", v: editing ? draft.S : s.S },
+    { k: "O", v: editing ? draft.O : s.O },
+    { k: "A", v: editing ? draft.A : s.A },
+    { k: "P", v: editing ? draft.P : s.P },
   ];
+
   return (
     <OutputCardShell
       title="SOAP note"
@@ -177,8 +234,21 @@ function SoapCard({ s }: { s: SoapNote }) {
       footer={
         <>
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={editing ? Icon.check(13) : Icon.edit(13)}
+            onClick={() => {
+              if (editing) {
+                onSave(draft);
+                setEditing(false);
+              } else {
+                setDraft(s);
+                setEditing(true);
+              }
+            }}
+          >
+            {editing ? "Done" : "Edit"}
           </Button>
         </>
       }
@@ -212,14 +282,31 @@ function SoapCard({ s }: { s: SoapNote }) {
           >
             {r.k}
           </span>
-          <div style={{ fontSize: 14, lineHeight: 1.6, color: C.text }}>
-            <StreamedText
-              text={r.v}
-              chunkSize={2}
-              intervalMs={35}
-              startDelayMs={220 + i * 180}
+          {editing ? (
+            <textarea
+              value={r.v}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, [r.k]: e.target.value }))
+              }
+              rows={Math.max(2, Math.min(8, r.v.split("\n").length + 1))}
+              style={{
+                ...editInputStyle,
+                fontFamily: "inherit",
+                fontSize: 14,
+                lineHeight: 1.5,
+                resize: "vertical",
+              }}
             />
-          </div>
+          ) : (
+            <div style={{ fontSize: 14, lineHeight: 1.6, color: C.text }}>
+              <StreamedText
+                text={r.v}
+                chunkSize={2}
+                intervalMs={35}
+                startDelayMs={220 + i * 180}
+              />
+            </div>
+          )}
         </div>
       ))}
     </OutputCardShell>
@@ -229,22 +316,61 @@ function SoapCard({ s }: { s: SoapNote }) {
 // ─────────────────────────────────────────────────────────────────────
 // Prescription
 // ─────────────────────────────────────────────────────────────────────
-function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
+function PrescriptionCard({
+  rx,
+  onSave,
+}: {
+  rx: PrescriptionItem[];
+  onSave: (next: PrescriptionItem[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<PrescriptionItem[]>(rx);
+  useEffect(() => {
+    setDraft(rx);
+    setEditing(false);
+  }, [rx]);
+
+  const view = editing ? draft : rx;
+  const updateRow = (i: number, patch: Partial<PrescriptionItem>) =>
+    setDraft((d) => d.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const removeRow = (i: number) =>
+    setDraft((d) => d.filter((_, idx) => idx !== i));
+  const addRow = () =>
+    setDraft((d) => [...d, { drug: "", dose: "", dur: "", qty: "" }]);
+
   return (
     <OutputCardShell
       title="Prescription"
-      meta={`${rx.length} drug${rx.length === 1 ? "" : "s"}`}
+      meta={`${view.length} drug${view.length === 1 ? "" : "s"}`}
       delay={90}
       footer={
         <>
+          {editing && (
+            <Button variant="soft" size="sm" onClick={addRow}>
+              + Add Rx
+            </Button>
+          )}
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={editing ? Icon.check(13) : Icon.edit(13)}
+            onClick={() => {
+              if (editing) {
+                onSave(draft);
+                setEditing(false);
+              } else {
+                setDraft(rx);
+                setEditing(true);
+              }
+            }}
+          >
+            {editing ? "Done" : "Edit"}
           </Button>
         </>
       }
     >
-      {rx.length === 0 && (
+      {view.length === 0 && (
         <div
           style={{
             padding: "16px 0 4px",
@@ -257,7 +383,7 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
           No medications prescribed for this visit.
         </div>
       )}
-      {rx.map((r, i) => (
+      {view.map((r, i) => (
         <div
           key={i}
           style={{
@@ -267,14 +393,34 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
         >
           <div
             style={{
-              fontFamily: FONT_MONO,
-              fontSize: 13.5,
-              fontWeight: 700,
-              color: C.text,
-              letterSpacing: -0.1,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            {r.drug}
+            {editing ? (
+              <input
+                type="text"
+                value={r.drug}
+                onChange={(e) => updateRow(i, { drug: e.target.value })}
+                placeholder="Drug name"
+                style={{ ...editInputStyle, fontWeight: 700, fontSize: 13.5 }}
+              />
+            ) : (
+              <div
+                style={{
+                  flex: 1,
+                  fontFamily: FONT_MONO,
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  color: C.text,
+                  letterSpacing: -0.1,
+                }}
+              >
+                {r.drug}
+              </div>
+            )}
+            {editing && <RowDeleteButton onClick={() => removeRow(i)} />}
           </div>
           <div
             style={{
@@ -284,11 +430,13 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
               marginTop: 8,
             }}
           >
-            {[
-              { k: "Dose", v: r.dose },
-              { k: "Duration", v: r.dur },
-              { k: "Qty", v: r.qty },
-            ].map((f) => (
+            {(
+              [
+                { k: "Dose", field: "dose" as const, v: r.dose },
+                { k: "Duration", field: "dur" as const, v: r.dur },
+                { k: "Qty", field: "qty" as const, v: r.qty },
+              ]
+            ).map((f) => (
               <div key={f.k}>
                 <div
                   style={{
@@ -301,16 +449,27 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
                 >
                   {f.k}
                 </div>
-                <div
-                  style={{
-                    fontFamily: FONT_MONO,
-                    fontSize: 12.5,
-                    color: C.text,
-                    marginTop: 3,
-                  }}
-                >
-                  {f.v}
-                </div>
+                {editing ? (
+                  <input
+                    type="text"
+                    value={f.v}
+                    onChange={(e) =>
+                      updateRow(i, { [f.field]: e.target.value })
+                    }
+                    style={{ ...editInputStyle, marginTop: 3 }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      fontFamily: FONT_MONO,
+                      fontSize: 12.5,
+                      color: C.text,
+                      marginTop: 3,
+                    }}
+                  >
+                    {f.v}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -323,30 +482,72 @@ function PrescriptionCard({ rx }: { rx: PrescriptionItem[] }) {
 // ─────────────────────────────────────────────────────────────────────
 // Billing
 // ─────────────────────────────────────────────────────────────────────
-function BillingCard({ items }: { items: BillingItem[] }) {
+function BillingCard({
+  items,
+  onSave,
+}: {
+  items: BillingItem[];
+  onSave: (next: BillingItem[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<BillingItem[]>(items);
   // Tick-list state — doctor checks off each item as they confirm it
   // was actually billed. Resets when a new pipeline run lands (the
   // items array identity changes via the parent's useMemo).
   const [checked, setChecked] = useState<Record<number, boolean>>({});
   useEffect(() => {
     setChecked({});
+    setDraft(items);
+    setEditing(false);
   }, [items]);
+
+  const view = editing ? draft : items;
   const tickCount = Object.values(checked).filter(Boolean).length;
+
+  const updateRow = (i: number, patch: Partial<BillingItem>) =>
+    setDraft((d) => d.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const removeRow = (i: number) =>
+    setDraft((d) => d.filter((_, idx) => idx !== i));
+  const addRow = () =>
+    setDraft((d) => [...d, { item: "", price: 0, flagged: false, note: "" }]);
+
   return (
     <OutputCardShell
       title="Billing recovery"
-      meta={`${tickCount} of ${items.length} ticked`}
+      meta={
+        editing
+          ? `${view.length} item${view.length === 1 ? "" : "s"}`
+          : `${tickCount} of ${view.length} ticked`
+      }
       delay={180}
       footer={
         <>
+          {editing && (
+            <Button variant="soft" size="sm" onClick={addRow}>
+              + Add item
+            </Button>
+          )}
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={editing ? Icon.check(13) : Icon.edit(13)}
+            onClick={() => {
+              if (editing) {
+                onSave(draft);
+                setEditing(false);
+              } else {
+                setDraft(items);
+                setEditing(true);
+              }
+            }}
+          >
+            {editing ? "Done" : "Edit"}
           </Button>
         </>
       }
     >
-      {items.length === 0 && (
+      {view.length === 0 && (
         <div
           style={{
             padding: "16px 0 4px",
@@ -359,7 +560,51 @@ function BillingCard({ items }: { items: BillingItem[] }) {
           No billable items captured for this visit.
         </div>
       )}
-      {items.map((it, i) => {
+      {view.map((it, i) => {
+        if (editing) {
+          return (
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto auto",
+                gap: 8,
+                alignItems: "center",
+                padding: "10px 0",
+                borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none",
+              }}
+            >
+              <input
+                type="text"
+                value={it.item}
+                onChange={(e) => updateRow(i, { item: e.target.value })}
+                placeholder="Billable item"
+                style={editInputStyle}
+              />
+              <button
+                type="button"
+                onClick={() => updateRow(i, { flagged: !it.flagged })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 10px",
+                  fontSize: 10.5,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                  color: it.flagged ? C.amber : C.muted,
+                  border: `1px solid ${it.flagged ? C.amberBorder : C.border}`,
+                  borderRadius: 999,
+                  background: "transparent",
+                  cursor: "pointer",
+                }}
+              >
+                {Icon.warn(10)} {it.flagged ? "Flagged" : "Flag"}
+              </button>
+              <RowDeleteButton onClick={() => removeRow(i)} />
+            </div>
+          );
+        }
         const isChecked = !!checked[i];
         const toggle = () =>
           setChecked((prev) => ({ ...prev, [i]: !prev[i] }));
@@ -404,7 +649,7 @@ function BillingCard({ items }: { items: BillingItem[] }) {
                   fontSize: 13.5,
                   color: isChecked ? C.muted : C.text,
                   fontWeight: it.flagged ? 600 : 500,
-                  textDecoration: isChecked ? "line-through" : "none",
+                  textDecorationLine: isChecked ? "line-through" : "none",
                   textDecorationColor: C.muted,
                 }}
               >
@@ -442,29 +687,69 @@ function BillingCard({ items }: { items: BillingItem[] }) {
 // ─────────────────────────────────────────────────────────────────────
 // Todos
 // ─────────────────────────────────────────────────────────────────────
-function TodoCard({ todos }: { todos: TodoItem[] }) {
+function TodoCard({
+  todos,
+  onSave,
+}: {
+  todos: TodoItem[];
+  onSave: (next: TodoItem[]) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<TodoItem[]>(todos);
   const [done, setDone] = useState<Record<number, boolean>>({});
+  useEffect(() => {
+    setDone({});
+    setDraft(todos);
+    setEditing(false);
+  }, [todos]);
+
+  const view = editing ? draft : todos;
   const assigneeTone = (who: string): "green" | "amber" | "neutral" => {
     const w = who.toLowerCase();
     if (w.includes("vet") || w.includes("doctor")) return "green";
     if (w.includes("nurse")) return "amber";
     return "neutral";
   };
+
+  const updateRow = (i: number, patch: Partial<TodoItem>) =>
+    setDraft((d) => d.map((row, idx) => (idx === i ? { ...row, ...patch } : row)));
+  const removeRow = (i: number) =>
+    setDraft((d) => d.filter((_, idx) => idx !== i));
+  const addRow = () => setDraft((d) => [...d, { task: "", who: "" }]);
+
   return (
     <OutputCardShell
       title="Staff to-do"
-      meta={`${todos.length} tasks`}
+      meta={`${view.length} tasks`}
       delay={270}
       footer={
         <>
+          {editing && (
+            <Button variant="soft" size="sm" onClick={addRow}>
+              + Add task
+            </Button>
+          )}
           <div style={{ flex: 1 }} />
-          <Button variant="ghost" size="sm" icon={Icon.edit(13)}>
-            Edit
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={editing ? Icon.check(13) : Icon.edit(13)}
+            onClick={() => {
+              if (editing) {
+                onSave(draft);
+                setEditing(false);
+              } else {
+                setDraft(todos);
+                setEditing(true);
+              }
+            }}
+          >
+            {editing ? "Done" : "Edit"}
           </Button>
         </>
       }
     >
-      {todos.length === 0 && (
+      {view.length === 0 && (
         <div
           style={{
             padding: "16px 0 4px",
@@ -477,51 +762,84 @@ function TodoCard({ todos }: { todos: TodoItem[] }) {
           No staff to-dos generated for this visit.
         </div>
       )}
-      {todos.map((t, i) => (
-        <div
-          key={i}
-          onClick={() => setDone((d) => ({ ...d, [i]: !d[i] }))}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "10px 0",
-            cursor: "pointer",
-            borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none",
-          }}
-        >
+      {view.map((t, i) => {
+        if (editing) {
+          return (
+            <div
+              key={i}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 140px auto",
+                gap: 8,
+                alignItems: "center",
+                padding: "10px 0",
+                borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none",
+              }}
+            >
+              <input
+                type="text"
+                value={t.task}
+                onChange={(e) => updateRow(i, { task: e.target.value })}
+                placeholder="Task"
+                style={editInputStyle}
+              />
+              <input
+                type="text"
+                value={t.who}
+                onChange={(e) => updateRow(i, { who: e.target.value })}
+                placeholder="Assignee"
+                style={editInputStyle}
+              />
+              <RowDeleteButton onClick={() => removeRow(i)} />
+            </div>
+          );
+        }
+        return (
           <div
+            key={i}
+            onClick={() => setDone((d) => ({ ...d, [i]: !d[i] }))}
             style={{
-              width: 18,
-              height: 18,
-              borderRadius: 4,
-              border: `1.5px solid ${done[i] ? C.green : C.border}`,
-              background: done[i] ? C.green : "transparent",
-              color: "#fff",
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-              transition: "all 140ms ease",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 0",
+              cursor: "pointer",
+              borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none",
             }}
           >
-            {done[i] && Icon.check(11)}
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 4,
+                border: `1.5px solid ${done[i] ? C.green : C.border}`,
+                background: done[i] ? C.green : "transparent",
+                color: "#fff",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                transition: "all 140ms ease",
+              }}
+            >
+              {done[i] && Icon.check(11)}
+            </div>
+            <div
+              style={{
+                flex: 1,
+                fontSize: 13.5,
+                color: done[i] ? C.muted : C.text,
+                textDecorationLine: done[i] ? "line-through" : "none",
+                lineHeight: 1.4,
+              }}
+            >
+              {t.task}
+            </div>
+            <Pill tone={assigneeTone(t.who)} style={{ fontSize: 11, padding: "2px 9px" }}>
+              {t.who}
+            </Pill>
           </div>
-          <div
-            style={{
-              flex: 1,
-              fontSize: 13.5,
-              color: done[i] ? C.muted : C.text,
-              textDecoration: done[i] ? "line-through" : "none",
-              lineHeight: 1.4,
-            }}
-          >
-            {t.task}
-          </div>
-          <Pill tone={assigneeTone(t.who)} style={{ fontSize: 11, padding: "2px 9px" }}>
-            {t.who}
-          </Pill>
-        </div>
-      ))}
+        );
+      })}
     </OutputCardShell>
   );
 }
@@ -2154,7 +2472,7 @@ function ConsultContent() {
   // events as Sonnet streams its tool input). This lets the SOAP / Rx /
   // Billing / Todos cards render token-by-token during the orchestrator
   // pass instead of waiting for the full ~18s completion.
-  const output: ConsultOutput | null = useMemo(() => {
+  const baseOutput: ConsultOutput | null = useMemo(() => {
     const summary = stream.result?.summary ?? stream.partialSummary ?? null;
     if (!summary) return null;
     return {
@@ -2164,6 +2482,17 @@ function ConsultContent() {
       todos: summary.todos ?? [],
     };
   }, [stream.result, stream.partialSummary]);
+  // Doctor edits to the output cards. Resets whenever the underlying
+  // pipeline output changes (new run / streaming delta) so we never
+  // mask fresh upstream data with stale local edits.
+  const [editOverrides, setEditOverrides] = useState<Partial<ConsultOutput>>({});
+  useEffect(() => {
+    setEditOverrides({});
+  }, [baseOutput]);
+  const output: ConsultOutput | null = useMemo(() => {
+    if (!baseOutput) return null;
+    return { ...baseOutput, ...editOverrides };
+  }, [baseOutput, editOverrides]);
   // True only while the orchestrator is still streaming — used by cards
   // to render a subtle "streaming…" pill so the doctor knows the
   // displayed values aren't final yet.
@@ -3305,8 +3634,18 @@ function ConsultContent() {
 
           {status === "ready" && output && (
             <div style={{ display: "grid", gap: 14 }}>
-              <SoapCard s={output.soap} />
-              <PrescriptionCard rx={output.prescription} />
+              <SoapCard
+                s={output.soap}
+                onSave={(soap) =>
+                  setEditOverrides((o) => ({ ...o, soap }))
+                }
+              />
+              <PrescriptionCard
+                rx={output.prescription}
+                onSave={(prescription) =>
+                  setEditOverrides((o) => ({ ...o, prescription }))
+                }
+              />
 
               {/* Recoverable callout — thin amber border, no wash */}
               {billFlagged > 0 && (
@@ -3341,8 +3680,18 @@ function ConsultContent() {
                 </div>
               )}
 
-              <BillingCard items={output.billing} />
-              <TodoCard todos={output.todos} />
+              <BillingCard
+                items={output.billing}
+                onSave={(billing) =>
+                  setEditOverrides((o) => ({ ...o, billing }))
+                }
+              />
+              <TodoCard
+                todos={output.todos}
+                onSave={(todos) =>
+                  setEditOverrides((o) => ({ ...o, todos }))
+                }
+              />
               <EvidenceCheckCard
                 patient={patient}
                 output={output}

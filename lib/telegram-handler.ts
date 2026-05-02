@@ -197,6 +197,8 @@ export async function handleOwnerMessage(
           .from("patients")
           .select("id, name")
           .eq("owner_telegram", chatId)
+          .order("created_at", { ascending: true })
+          .limit(1)
           .maybeSingle<{ id: string; name: string }>();
         if (patient) {
           const { data: visit } = await db
