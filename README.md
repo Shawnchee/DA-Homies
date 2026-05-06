@@ -1,4 +1,4 @@
-# Consilium
+# Consilium (KEYS REMOVED TO SAVE COST - 6/5/2026)
 
 **AI Decision Copilot for Veterinary Clinics** — built for UMHackathon 2026 (Final Round).
 
